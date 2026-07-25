@@ -1,0 +1,6 @@
+{
+  "name": "Nebulae",
+  "description": "An intuitive, meditative digital clay sculpting editor for custom rings and jewelry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
