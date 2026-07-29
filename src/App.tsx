@@ -320,18 +320,8 @@ export default function App() {
     insertsCount: number,
     engraving: string
   ) => {
-    let basePrice = 3900;
-    basePrice += Math.round((params.innerDiameter - 16) * 140);
-    basePrice += Math.round((params.width || 4.5) * 180);
-    basePrice += Math.round((params.thickness || 2.2) * 220);
-
-    if (material === 'glow_blue') basePrice += 1200;
-    if (material === 'two_tone') basePrice += 800;
-
-    basePrice += insertsCount * 450;
-    if (engraving.trim().length > 0) basePrice += 500;
-
-    return Math.round(basePrice / 10) * 10;
+    let basePrice = 1500;
+    return basePrice ;
   };
 
   const handleAddToCart = () => {
