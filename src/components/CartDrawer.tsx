@@ -18,9 +18,14 @@ import {
   User,
   Mail,
   MapPin,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
 import { CartItem, OrderDetails } from '../types';
+
+// Укажите токены здесь или через VITE_TELEGRAM_BOT_TOKEN / VITE_TELEGRAM_CHAT_ID в .env
+const TELEGRAM_BOT_TOKEN = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || 'ВАШ_ТОКЕН';
+const TELEGRAM_CHAT_ID = import.meta.env.VITE_TELEGRAM_CHAT_ID || 'ВАШ_CHAT_ID';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -43,6 +48,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 }) => {
   const [step, setStep] = useState<'cart' | 'checkout' | 'success'>('cart');
   const [orderNumber, setOrderNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderDetails, setOrderDetails] = useState<OrderDetails>({
     customerName: '',
     phone: '',
@@ -74,20 +80,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     return Object.keys(errors).length === 0;
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
     setIsSubmitting(true);
 
-    // 1. Генерация номера заказа
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const newOrderNum = `NEB-${randomNum}`;
 
     try {
-      // 2. Сборка FormData для отправки на сервер
       const formData = new FormData();
       formData.append('orderNumber', newOrderNum);
       formData.append('customerName', orderDetails.customerName);
@@ -98,7 +100,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       formData.append('comment', orderDetails.comment || '');
       formData.append('items', JSON.stringify(items));
 
-      // 3. Получение STL блобов из товаров
+      // Собираем 3D-модели (STL)
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.stlBlobUrl) {
@@ -106,24 +108,30 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             const blobRes = await fetch(item.stlBlobUrl);
             const blob = await blobRes.blob();
             formData.append('stlFiles', blob, `${newOrderNum}_Item_${i + 1}.stl`);
-          } catch (err) {
-            console.error('Failed to fetch STL blob for item:', item.id, err);
+          } catch (fileErr) {
+            console.error('Ошибка чтения STL блоба:', fileErr);
           }
         }
       }
 
-      // 4. Отправка на бэкенд
-      await fetch('/api/checkout', {
+      // Если адрес API на сервере отличается, используется окно поиска или относительный адрес
+      const response = await fetch('/api/checkout', {
         method: 'POST',
         body: formData,
       });
 
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Ошибка серверов Telegram');
+      }
+
       setOrderNumber(newOrderNum);
       setStep('success');
       onClearCart();
-    } catch (err) {
-      console.error('Checkout error:', err);
-      alert('Произошла ошибка при отправке заказа. Попробуйте снова.');
+    } catch (err: any) {
+      console.error('Ошибка оформления заказа:', err);
+      alert(`Ошибка при отправке заказа: ${err.message || 'Проверьте соединение с сервером'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -131,7 +139,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const handleClose = () => {
     onClose();
-    // Reset back to cart view after transition
     setTimeout(() => {
       setStep('cart');
     }, 300);
@@ -142,7 +149,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 overflow-hidden font-sans">
-        {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -181,7 +187,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               <button
                 onClick={handleClose}
-                className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 active:scale-95 transition-all"
+                className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 active:scale-95 transition-all cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -202,7 +208,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </p>
                       <button
                         onClick={handleClose}
-                        className="px-5 py-2.5 bg-neutral-900 text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-all shadow-md active:scale-95"
+                        className="px-5 py-2.5 bg-neutral-900 text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-all shadow-md active:scale-95 cursor-pointer"
                       >
                         Вернуться к моделированию
                       </button>
@@ -229,7 +235,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             </span>
                           </div>
 
-                          {/* Ring Specs Specs Tags */}
                           <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-white p-2.5 rounded-xl border border-neutral-100 text-neutral-600">
                             <div>
                               Размер пальца: <span className="font-semibold text-neutral-900">{item.ringParams.innerDiameter} мм</span>
@@ -242,7 +247,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             </div>
                           </div>
 
-                          {/* Special details (Engraving & Inserts) */}
                           {(item.inscriptionText || item.placedInsertsCount > 0) && (
                             <div className="flex flex-wrap gap-2 text-[11px]">
                               {item.inscriptionText && (
@@ -260,7 +264,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             </div>
                           )}
 
-                          {/* Quantity & Actions */}
                           <div className="flex items-center justify-between pt-1 border-t border-neutral-200/50">
                             <div className="flex items-center gap-2">
                               <button
@@ -275,7 +278,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                   }
                                 }}
                                 className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-white hover:bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200 transition-all cursor-pointer"
-                                title="Скачать сохраненную 3D-модель этой позиции в формате STL"
                               >
                                 <Download className="w-3 h-3 text-emerald-600" />
                                 <span>3D STL</span>
@@ -286,7 +288,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                               <div className="flex items-center rounded-lg border border-neutral-200 bg-white p-0.5">
                                 <button
                                   onClick={() => onUpdateQuantity(item.id, -1)}
-                                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 active:scale-95 transition-all"
+                                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 active:scale-95 transition-all cursor-pointer"
                                 >
                                   <Minus className="w-3 h-3" />
                                 </button>
@@ -295,7 +297,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 </span>
                                 <button
                                   onClick={() => onUpdateQuantity(item.id, 1)}
-                                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 active:scale-95 transition-all"
+                                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 active:scale-95 transition-all cursor-pointer"
                                 >
                                   <Plus className="w-3 h-3" />
                                 </button>
@@ -303,8 +305,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                               <button
                                 onClick={() => onRemoveItem(item.id)}
-                                className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg active:scale-95 transition-all"
-                                title="Удалить из корзины"
+                                className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg active:scale-95 transition-all cursor-pointer"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -319,7 +320,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {step === 'checkout' && (
                 <form onSubmit={handlePlaceOrder} className="space-y-4">
-                  {/* Order summary box */}
                   <div className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-200/60 flex items-center justify-between">
                     <div>
                       <p className="text-xs text-neutral-500">Заказ ({items.reduce((a, b) => a + b.quantity, 0)} изделия):</p>
@@ -328,13 +328,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <button
                       type="button"
                       onClick={() => setStep('cart')}
-                      className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 underline"
+                      className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 underline cursor-pointer"
                     >
                       Изменить
                     </button>
                   </div>
 
-                  {/* Customer details */}
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">
@@ -388,7 +387,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </div>
                     </div>
 
-                    {/* Delivery Method */}
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">Способ получения</label>
                       <div className="grid grid-cols-3 gap-2">
@@ -401,7 +399,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             key={method.id}
                             type="button"
                             onClick={() => setOrderDetails({ ...orderDetails, deliveryMethod: method.id as any })}
-                            className={`py-2 px-2 text-[11px] font-medium rounded-xl border transition-all text-center ${
+                            className={`py-2 px-2 text-[11px] font-medium rounded-xl border transition-all text-center cursor-pointer ${
                               orderDetails.deliveryMethod === method.id
                                 ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
                                 : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
@@ -449,14 +447,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   </div>
 
-                  {/* Service Guarantees */}
                   <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl space-y-1.5 text-[11px] text-emerald-800">
                     <div className="flex items-center gap-1.5 font-semibold">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
                       <span>Гарантия точности 3D-модели</span>
                     </div>
                     <p className="text-emerald-700/90 leading-tight">
-                      Ювелир проверит вашу модель перед отливкой. Вы получите фото готового изделия перед отправкой.
+                      Модели мгновенно приходят в Telegram бота вместе с данными заказа.
                     </p>
                   </div>
 
@@ -464,10 +461,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
->
-                      <span>{isSubmitting ? 'ОТПРАВКА ЗАКАЗА...' : 'ПОДТВЕРДИТЬ И ОФОРМИТЬ ЗАКАЗ'}</span>
-                      <ArrowRight className="w-4 h-4" />
+                      className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>ОТПРАВКА В TELEGRAM...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>ПОДТВЕРДИТЬ И ОФОРМИТЬ ЗАКАЗ</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -494,22 +500,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       <Truck className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
                       <div>
                         <span className="font-semibold text-neutral-900 block">Изготовление и доставка</span>
-                        <span className="text-[11px] text-neutral-500">Срок изготовления: 5-7 рабочих дней. Ювелир свяжется с вами по номеру <strong className="text-neutral-800">{orderDetails.phone}</strong>.</span>
+                        <span className="text-[11px] text-neutral-500">Срок изготовления: 5-7 рабочих дней. Мы свяжемся с вами по номеру <strong className="text-neutral-800">{orderDetails.phone}</strong>.</span>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-2.5 pt-2 border-t border-neutral-200/60">
                       <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-semibold text-neutral-900 block">Параметры сохранены</span>
-                        <span className="text-[11px] text-neutral-500">Все 3D-файлы и математическая геометрия переданы на производство.</span>
+                        <span className="font-semibold text-neutral-900 block">Параметры отправлены</span>
+                        <span className="text-[11px] text-neutral-500">Все 3D-модели (STL) и данные заказа уже получены в Telegram.</span>
                       </div>
                     </div>
                   </div>
 
                   <button
                     onClick={handleClose}
-                    className="w-full py-3 bg-neutral-900 text-white font-semibold text-xs rounded-xl hover:bg-neutral-800 transition-all shadow-md active:scale-95"
+                    className="w-full py-3 bg-neutral-900 text-white font-semibold text-xs rounded-xl hover:bg-neutral-800 transition-all shadow-md active:scale-95 cursor-pointer"
                   >
                     Вернуться к моделированию
                   </button>
@@ -517,7 +523,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               )}
             </div>
 
-            {/* Footer summary for cart step */}
+            {/* Footer */}
             {step === 'cart' && items.length > 0 && (
               <div className="p-6 border-t border-neutral-100 bg-white space-y-3 shadow-lg">
                 <div className="space-y-1.5 text-xs text-neutral-500">
@@ -527,7 +533,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span>Доставка:</span>
-                    <span className="text-emerald-600 font-medium">Бесплатно</span>
+                    <span className="text-emerald-600 font-medium">Рассчитывается при оформлении</span>
                   </div>
                   <div className="flex justify-between items-baseline pt-2 border-t border-neutral-100">
                     <span className="text-sm font-bold text-neutral-900">Итого к оплате:</span>
