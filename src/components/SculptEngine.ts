@@ -251,7 +251,8 @@ export class SculptEngine {
     symmetryPlane?: boolean,
     symmetryRadialCount?: number,
     autoSmoothEnabled?: boolean,
-    autoSmoothStrength?: number
+    autoSmoothStrength?: number,
+    symmetryPlanePerp?: boolean
   ) {
     const { tool, radius, intensity, isSubtract } = config;
     const posAttr = this.geometry.attributes.position;
@@ -280,14 +281,20 @@ export class SculptEngine {
     // Generate virtual brushes for symmetry
     const virtualBrushes: { point: THREE.Vector3; normal: THREE.Vector3; drag: THREE.Vector3 }[] = [];
 
-    // Always include the original brush
-    virtualBrushes.push({
-      point: intersectPt.clone(),
-      normal: intersectNormal.clone(),
-      drag: dragVector ? dragVector.clone() : new THREE.Vector3(),
-    });
+    const addUniqueBrush = (pt: THREE.Vector3, norm: THREE.Vector3, drag: THREE.Vector3) => {
+      for (const b of virtualBrushes) {
+        if (b.point.distanceTo(pt) < 0.001) return;
+      }
+      virtualBrushes.push({ point: pt, normal: norm, drag: drag });
+    };
 
-    if (symmetryEnabled) {
+    const origPt = intersectPt.clone();
+    const origNorm = intersectNormal.clone();
+    const origDrag = dragVector ? dragVector.clone() : new THREE.Vector3();
+
+    if (!symmetryEnabled) {
+      addUniqueBrush(origPt, origNorm, origDrag);
+    } else {
       const radialCount = Math.max(1, Math.min(8, symmetryRadialCount || 1));
 
       const rotateZ = (vec: THREE.Vector3, angle: number): THREE.Vector3 => {
@@ -304,25 +311,38 @@ export class SculptEngine {
         return new THREE.Vector3(vec.x, vec.y, -vec.z);
       };
 
+      const mirrorX = (vec: THREE.Vector3): THREE.Vector3 => {
+        return new THREE.Vector3(-vec.x, vec.y, vec.z);
+      };
+
       for (let k = 0; k < radialCount; k++) {
         const angle = (k * 2 * Math.PI) / radialCount;
 
-        if (k > 0) {
-          const ptRot = rotateZ(intersectPt, angle);
-          const normRot = rotateZ(intersectNormal, angle);
-          const dragRot = dragVector ? rotateZ(dragVector, angle) : new THREE.Vector3();
-          virtualBrushes.push({ point: ptRot, normal: normRot, drag: dragRot });
-        }
+        const ptRot = rotateZ(origPt, angle);
+        const normRot = rotateZ(origNorm, angle);
+        const dragRot = rotateZ(origDrag, angle);
+
+        addUniqueBrush(ptRot, normRot, dragRot);
 
         if (symmetryPlane) {
-          const ptRot = rotateZ(intersectPt, angle);
-          const normRot = rotateZ(intersectNormal, angle);
-          const dragRot = dragVector ? rotateZ(dragVector, angle) : new THREE.Vector3();
+          const ptMirZ = mirrorZ(ptRot);
+          const normMirZ = mirrorZ(normRot);
+          const dragMirZ = mirrorZ(dragRot);
+          addUniqueBrush(ptMirZ, normMirZ, dragMirZ);
+        }
 
-          const ptMir = mirrorZ(ptRot);
-          const normMir = mirrorZ(normRot);
-          const dragMir = mirrorZ(dragRot);
-          virtualBrushes.push({ point: ptMir, normal: normMir, drag: dragMir });
+        if (symmetryPlanePerp) {
+          const ptMirX = mirrorX(ptRot);
+          const normMirX = mirrorX(normRot);
+          const dragMirX = mirrorX(dragRot);
+          addUniqueBrush(ptMirX, normMirX, dragMirX);
+        }
+
+        if (symmetryPlane && symmetryPlanePerp) {
+          const ptMirXZ = mirrorZ(mirrorX(ptRot));
+          const normMirXZ = mirrorZ(mirrorX(normRot));
+          const dragMirXZ = mirrorZ(mirrorX(dragRot));
+          addUniqueBrush(ptMirXZ, normMirXZ, dragMirXZ);
         }
       }
     }
@@ -1054,7 +1074,7 @@ export class SculptEngine {
    * Generates a watertight STL binary blob of the sculpted ring geometry,
    * merged with all placed decorative inserts.
    */
-  public exportSTL(name: string = 'SculptRing_Model.stl') {
+  public generateSTLBlob(): Blob {
     interface Triangle {
       vA: THREE.Vector3;
       vB: THREE.Vector3;
@@ -1180,7 +1200,11 @@ export class SculptEngine {
       offset += 50;
     }
 
-    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+    return new Blob([buffer], { type: 'application/octet-stream' });
+  }
+
+  public exportSTL(name: string = 'SculptRing_Model.stl') {
+    const blob = this.generateSTLBlob();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = name;

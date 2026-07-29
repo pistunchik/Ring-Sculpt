@@ -38,10 +38,13 @@ import {
   Triangle,
   Square,
   AlertTriangle,
-  ShieldAlert
+  ShieldAlert,
+  ShoppingBag
 } from 'lucide-react';
 import { ThreeCanvas } from './components/ThreeCanvas';
 import { SculptEngine, SculptTool, BrushConfig, RingParams, PlacedInsert } from './components/SculptEngine';
+import { CartDrawer } from './components/CartDrawer';
+import { CartItem } from './types';
 
 // Helper to filter micro-jitters / clustered points when drawing
 const filterMicroJitter = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
@@ -250,6 +253,7 @@ export default function App() {
   // Symmetry and Daylight settings (timeOfDay goes from 12.0 noon to 24.0 midnight)
   const [symmetryEnabled, setSymmetryEnabled] = useState(true);
   const [symmetryPlane, setSymmetryPlane] = useState(true);
+  const [symmetryPlanePerp, setSymmetryPlanePerp] = useState(false);
   const [symmetryRadialCount, setSymmetryRadialCount] = useState(4);
   const [timeOfDay, setTimeOfDay] = useState(12.0);
 
@@ -284,6 +288,120 @@ export default function App() {
     hasRight: false,
     maxExceed: 0,
   });
+
+  // 8. Shopping Cart State & Persistence
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    try {
+      // Clear legacy cart items stored from previous tests so initial cart is empty
+      localStorage.removeItem('nebulae_cart');
+      localStorage.removeItem('nebulae_cart_v2');
+      const saved = localStorage.getItem('nebulae_cart_v3');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cartToast, setCartToast] = useState<{ show: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      // Strip memory object URLs before persisting to localStorage
+      const lightweightItems = cartItems.map(({ stlBlobUrl, stlDataUrl, ...rest }) => rest);
+      localStorage.setItem('nebulae_cart_v3', JSON.stringify(lightweightItems));
+    } catch (e) {
+      console.warn('Could not save cart to localStorage:', e);
+    }
+  }, [cartItems]);
+
+  const calculateRingPrice = (
+    params: RingParams,
+    material: string,
+    insertsCount: number,
+    engraving: string
+  ) => {
+    let basePrice = 3900;
+    basePrice += Math.round((params.innerDiameter - 16) * 140);
+    basePrice += Math.round((params.width || 4.5) * 180);
+    basePrice += Math.round((params.thickness || 2.2) * 220);
+
+    if (material === 'glow_blue') basePrice += 1200;
+    if (material === 'two_tone') basePrice += 800;
+
+    basePrice += insertsCount * 450;
+    if (engraving.trim().length > 0) basePrice += 500;
+
+    return Math.round(basePrice / 10) * 10;
+  };
+
+  const handleAddToCart = () => {
+    const currentMaterial = materialPresetsList.find((m) => m.id === materialPreset);
+    const calculatedPrice = calculateRingPrice(
+      ringParams,
+      materialPreset,
+      placedInserts.length,
+      inscriptionText
+    );
+
+    let stlBlobUrl: string | undefined;
+
+    if (sculptEngine) {
+      try {
+        const blob = sculptEngine.generateSTLBlob();
+        stlBlobUrl = URL.createObjectURL(blob);
+      } catch (err) {
+        console.error("Error capturing ring STL snapshot:", err);
+      }
+    }
+
+    const newItem: CartItem = {
+      id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      name: `Кольцо Nebulae (${ringParams.innerDiameter.toFixed(1)} мм)`,
+      ringParams: { ...ringParams },
+      materialPreset,
+      materialName: currentMaterial?.name || materialPreset,
+      materialColorClass: currentMaterial?.colorClass || 'bg-neutral-300',
+      inscriptionText,
+      placedInsertsCount: placedInserts.length,
+      price: calculatedPrice,
+      quantity: 1,
+      addedAt: new Date().toISOString(),
+      stlBlobUrl,
+    };
+
+    setCartItems((prev) => [...prev, newItem]);
+
+    setCartToast({
+      show: true,
+      message: 'Модель добавлена в корзину!',
+    });
+
+    setTimeout(() => {
+      setCartToast(null);
+    }, 4000);
+  };
+
+  const handleUpdateQuantity = (id: string, delta: number) => {
+    setCartItems((prev) =>
+      prev
+        .map((item) => {
+          if (item.id === id) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
+          }
+          return item;
+        })
+        .filter(Boolean) as CartItem[]
+    );
+  };
+
+  const handleRemoveCartItem = (id: string) => {
+    setCartItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClearCart = () => {
+    setCartItems([]);
+  };
 
   // Helper to normalize, center, and invert drawing points coordinates for extrusion
   const handleSketchEnd = (rawPoints: { x: number; y: number }[]) => {
@@ -424,6 +542,7 @@ export default function App() {
           exportCounter={exportCounter}
           symmetryEnabled={symmetryEnabled}
           symmetryPlane={symmetryPlane}
+          symmetryPlanePerp={symmetryPlanePerp}
           symmetryRadialCount={symmetryRadialCount}
           timeOfDay={timeOfDay}
           autoSmoothEnabled={autoSmoothEnabled}
@@ -571,6 +690,28 @@ export default function App() {
             title={soundEnabled ? "Выключить звук" : "Включить звук"}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
+          <div className={`w-px h-5 mx-0.5 ${isNight ? 'bg-neutral-800' : 'bg-neutral-200/60'}`} />
+
+          {/* Cart Header Button */}
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95 cursor-pointer ${
+              cartItems.length > 0
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                : (isNight ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200' : 'bg-neutral-900 hover:bg-neutral-800 text-white')
+            }`}
+            id="cart-header-button"
+            title="Перейти в корзину для заказа"
+          >
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Корзина</span>
+            {cartItems.length > 0 && (
+              <span className="bg-white text-emerald-900 font-mono text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ml-0.5">
+                {cartItems.reduce((acc, item) => acc + item.quantity, 0)}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1044,24 +1185,47 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Plane Symmetry Toggle */}
-                <div className="flex items-center justify-between pt-3 border-t border-neutral-100">
-                  <div>
-                    <span className="text-[13px] font-medium text-neutral-700 block">Зеркальная симметрия</span>
-                  </div>
-                  <button
-                    onClick={() => setSymmetryPlane(!symmetryPlane)}
-                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      symmetryPlane ? 'bg-emerald-600' : 'bg-neutral-200'
-                    }`}
-                    id="symmetry-plane-toggle"
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                        symmetryPlane ? 'translate-x-4' : 'translate-x-0'
+                {/* Plane Symmetry Toggles */}
+                <div className="space-y-3 pt-3 border-t border-neutral-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[13px] font-medium text-neutral-700 block">Зеркально по ширине</span>
+                      <span className="text-[11px] text-neutral-400 block leading-tight">Отражение вдоль ширины шинки</span>
+                    </div>
+                    <button
+                      onClick={() => setSymmetryPlane(!symmetryPlane)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        symmetryPlane ? 'bg-emerald-600' : 'bg-neutral-200'
                       }`}
-                    />
-                  </button>
+                      id="symmetry-plane-toggle"
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                          symmetryPlane ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-neutral-100/60">
+                    <div>
+                      <span className="text-[13px] font-medium text-neutral-700 block">Зеркально перпендикулярно</span>
+                      <span className="text-[11px] text-neutral-400 block leading-tight">Перпендикулярно плоскости кольца</span>
+                    </div>
+                    <button
+                      onClick={() => setSymmetryPlanePerp(!symmetryPlanePerp)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        symmetryPlanePerp ? 'bg-emerald-600' : 'bg-neutral-200'
+                      }`}
+                      id="symmetry-plane-perp-toggle"
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                          symmetryPlanePerp ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -1145,17 +1309,78 @@ export default function App() {
 
 
 
-          {/* Export Buttons */}
-          <button
-            onClick={() => setExportCounter((prev) => prev + 1)}
-            className="w-full py-3.5 px-4 bg-neutral-900 hover:bg-neutral-950 active:scale-[0.98] text-white rounded-xl text-[13px] font-semibold tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-neutral-900/10"
-            id="export-stl-button"
-          >
-            <Download className="w-4 h-4" />
-            ЭКСПОРТ В STL (3D-ПЕЧАТЬ)
-          </button>
+          {/* Add to Cart Primary Button & Cart Drawer */}
+          <div className="space-y-2 mt-4">
+            <button
+              onClick={handleAddToCart}
+              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
+              id="add-to-cart-button"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>ДОБАВИТЬ В КОРЗИНУ ({new Intl.NumberFormat('ru-RU').format(calculateRingPrice(ringParams, materialPreset, placedInserts.length, inscriptionText))} ₽)</span>
+            </button>
+
+            <div className="flex items-center justify-between px-1 text-xs text-neutral-500">
+              <button
+                onClick={() => setIsCartOpen(true)}
+                className="text-emerald-700 hover:text-emerald-900 font-medium flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                <span>В корзине {cartItems.reduce((acc, item) => acc + item.quantity, 0)} шт.</span>
+              </button>
+
+              <button
+                onClick={() => setExportCounter((prev) => prev + 1)}
+                className="text-neutral-400 hover:text-neutral-700 font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                title="Скачать исходный STL файл для 3D-печати"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Скачать STL</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Cart Slide-over Drawer & Order Modal */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cartItems}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveCartItem}
+        onClearCart={handleClearCart}
+        onExportSTL={() => setExportCounter((prev) => prev + 1)}
+      />
+
+      {/* Toast Notification when item added */}
+      <AnimatePresence>
+        {cartToast?.show && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-neutral-700/80 flex items-center gap-3 backdrop-blur-md max-w-sm w-[90vw]"
+          >
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-bold">
+              <Check className="w-4 h-4" />
+            </div>
+            <div className="text-xs flex-1">
+              <p className="font-bold text-white">{cartToast.message}</p>
+              <p className="text-neutral-400 text-[11px]">Параметры сохранены</p>
+            </div>
+            <button
+              onClick={() => {
+                setCartToast(null);
+                setIsCartOpen(true);
+              }}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg transition-all shrink-0 cursor-pointer"
+            >
+              В корзину
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

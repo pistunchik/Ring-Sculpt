@@ -21,6 +21,7 @@ interface ThreeCanvasProps {
   exportCounter: number;
   symmetryEnabled: boolean;
   symmetryPlane: boolean;
+  symmetryPlanePerp?: boolean;
   symmetryRadialCount: number;
   timeOfDay: number;
   autoSmoothEnabled: boolean;
@@ -293,12 +294,17 @@ const mirrorVectorZ = (vec: THREE.Vector3): THREE.Vector3 => {
   return new THREE.Vector3(vec.x, vec.y, -vec.z);
 };
 
+const mirrorVectorX = (vec: THREE.Vector3): THREE.Vector3 => {
+  return new THREE.Vector3(-vec.x, vec.y, vec.z);
+};
+
 export const computeSymmetricalTransforms = (
   hitPoint: THREE.Vector3,
   hitNormal: THREE.Vector3,
   symmetryEnabled: boolean,
   symmetryPlane: boolean,
-  symmetryRadialCount: number
+  symmetryRadialCount: number,
+  symmetryPlanePerp?: boolean
 ): Transform[] => {
   const up = new THREE.Vector3(0, 0, 1);
   const transforms: Transform[] = [];
@@ -329,9 +335,21 @@ export const computeSymmetricalTransforms = (
     addUniqueTransform(ptRot, normRot);
 
     if (symmetryPlane) {
-      const ptMir = mirrorVectorZ(ptRot);
-      const normMir = mirrorVectorZ(normRot);
-      addUniqueTransform(ptMir, normMir);
+      const ptMirZ = mirrorVectorZ(ptRot);
+      const normMirZ = mirrorVectorZ(normRot);
+      addUniqueTransform(ptMirZ, normMirZ);
+    }
+
+    if (symmetryPlanePerp) {
+      const ptMirX = mirrorVectorX(ptRot);
+      const normMirX = mirrorVectorX(normRot);
+      addUniqueTransform(ptMirX, normMirX);
+    }
+
+    if (symmetryPlane && symmetryPlanePerp) {
+      const ptMirXZ = mirrorVectorZ(mirrorVectorX(ptRot));
+      const normMirXZ = mirrorVectorZ(mirrorVectorX(normRot));
+      addUniqueTransform(ptMirXZ, normMirXZ);
     }
   }
 
@@ -350,6 +368,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   exportCounter,
   symmetryEnabled,
   symmetryPlane,
+  symmetryPlanePerp = false,
   symmetryRadialCount,
   timeOfDay,
   autoSmoothEnabled,
@@ -537,6 +556,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
   const symmetryEnabledRef = useRef(symmetryEnabled);
   const symmetryPlaneRef = useRef(symmetryPlane);
+  const symmetryPlanePerpRef = useRef(symmetryPlanePerp);
   const symmetryRadialCountRef = useRef(symmetryRadialCount);
 
   useEffect(() => {
@@ -546,6 +566,10 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   useEffect(() => {
     symmetryPlaneRef.current = symmetryPlane;
   }, [symmetryPlane]);
+
+  useEffect(() => {
+    symmetryPlanePerpRef.current = symmetryPlanePerp;
+  }, [symmetryPlanePerp]);
 
   useEffect(() => {
     symmetryRadialCountRef.current = symmetryRadialCount;
@@ -1061,7 +1085,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
               normal,
               symmetryEnabledRef.current,
               symmetryPlaneRef.current,
-              symmetryRadialCountRef.current
+              symmetryRadialCountRef.current,
+              symmetryPlanePerpRef.current
             );
 
             const engine = sculptEngineRef.current;
@@ -1280,7 +1305,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           normal,
           symmetryEnabledRef.current,
           symmetryPlaneRef.current,
-          symmetryRadialCountRef.current
+          symmetryRadialCountRef.current,
+          symmetryPlanePerpRef.current
         );
 
         const newInserts: PlacedInsert[] = transforms.map((tf) => ({
@@ -1378,7 +1404,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           normal,
           symmetryEnabledRef.current,
           symmetryPlaneRef.current,
-          symmetryRadialCountRef.current
+          symmetryRadialCountRef.current,
+          symmetryPlanePerpRef.current
         );
 
         const newInserts: PlacedInsert[] = transforms.map((tf) => ({
@@ -1455,7 +1482,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       symmetryPlane,
       symmetryRadialCount,
       autoSmoothEnabledRef.current,
-      autoSmoothStrengthRef.current
+      autoSmoothStrengthRef.current,
+      symmetryPlanePerp
     );
 
     // Save current intersection for velocity on next move event

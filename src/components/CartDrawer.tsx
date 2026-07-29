@@ -1,0 +1,552 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  X, 
+  ShoppingBag, 
+  Trash2, 
+  Plus, 
+  Minus, 
+  ArrowRight, 
+  CheckCircle2, 
+  Download, 
+  Truck, 
+  ShieldCheck, 
+  Gem, 
+  Type, 
+  Sparkles,
+  Phone,
+  User,
+  Mail,
+  MapPin,
+  FileText
+} from 'lucide-react';
+import { CartItem, OrderDetails } from '../types';
+
+interface CartDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  items: CartItem[];
+  onUpdateQuantity: (id: string, delta: number) => void;
+  onRemoveItem: (id: string) => void;
+  onClearCart: () => void;
+  onExportSTL: () => void;
+}
+
+export const CartDrawer: React.FC<CartDrawerProps> = ({
+  isOpen,
+  onClose,
+  items,
+  onUpdateQuantity,
+  onRemoveItem,
+  onClearCart,
+  onExportSTL,
+}) => {
+  const [step, setStep] = useState<'cart' | 'checkout' | 'success'>('cart');
+  const [orderNumber, setOrderNumber] = useState('');
+  const [orderDetails, setOrderDetails] = useState<OrderDetails>({
+    customerName: '',
+    phone: '',
+    email: '',
+    deliveryMethod: 'cdek',
+    address: '',
+    comment: '',
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('ru-RU').format(price) + ' ₽';
+  };
+
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+    if (!orderDetails.customerName.trim()) {
+      errors.customerName = 'Укажите ваше имя';
+    }
+    if (!orderDetails.phone.trim() || orderDetails.phone.length < 7) {
+      errors.phone = 'Укажите контактный номер телефона';
+    }
+    if (orderDetails.deliveryMethod !== 'pickup' && !orderDetails.address.trim()) {
+      errors.address = 'Укажите адрес доставки';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePlaceOrder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+
+    // 1. Генерация номера заказа
+    const randomNum = Math.floor(10000 + Math.random() * 90000);
+    const newOrderNum = `NEB-${randomNum}`;
+
+    try {
+      // 2. Сборка FormData для отправки на сервер
+      const formData = new FormData();
+      formData.append('orderNumber', newOrderNum);
+      formData.append('customerName', orderDetails.customerName);
+      formData.append('phone', orderDetails.phone);
+      formData.append('email', orderDetails.email || '');
+      formData.append('deliveryMethod', orderDetails.deliveryMethod);
+      formData.append('address', orderDetails.address || '');
+      formData.append('comment', orderDetails.comment || '');
+      formData.append('items', JSON.stringify(items));
+
+      // 3. Получение STL блобов из товаров
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.stlBlobUrl) {
+          try {
+            const blobRes = await fetch(item.stlBlobUrl);
+            const blob = await blobRes.blob();
+            formData.append('stlFiles', blob, `${newOrderNum}_Item_${i + 1}.stl`);
+          } catch (err) {
+            console.error('Failed to fetch STL blob for item:', item.id, err);
+          }
+        }
+      }
+
+      // 4. Отправка на бэкенд
+      await fetch('/api/checkout', {
+        method: 'POST',
+        body: formData,
+      });
+
+      setOrderNumber(newOrderNum);
+      setStep('success');
+      onClearCart();
+    } catch (err) {
+      console.error('Checkout error:', err);
+      alert('Произошла ошибка при отправке заказа. Попробуйте снова.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    onClose();
+    // Reset back to cart view after transition
+    setTimeout(() => {
+      setStep('cart');
+    }, 300);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 overflow-hidden font-sans">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={handleClose}
+          className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm transition-opacity"
+        />
+
+        <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+            className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between"
+          >
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center shadow-xs">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900 leading-tight">
+                    {step === 'cart' && 'Корзина заказа'}
+                    {step === 'checkout' && 'Оформление заказа'}
+                    {step === 'success' && 'Заказ принят!'}
+                  </h2>
+                  <p className="text-xs text-neutral-500">
+                    {step === 'cart' && `${items.reduce((a, b) => a + b.quantity, 0)} шт. в корзине`}
+                    {step === 'checkout' && 'Заполните данные для ювелира'}
+                    {step === 'success' && `Заказ №${orderNumber}`}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleClose}
+                className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 active:scale-95 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {step === 'cart' && (
+                <>
+                  {items.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center py-12">
+                      <div className="w-16 h-16 rounded-2xl bg-neutral-100 text-neutral-400 flex items-center justify-center mb-4">
+                        <ShoppingBag className="w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-bold text-neutral-800 mb-1">Корзина пуста</h3>
+                      <p className="text-xs text-neutral-500 max-w-xs mb-6">
+                        Создайте свой уникальный дизайн кольца в 3D редакторе и нажмите «Добавить в корзину»
+                      </p>
+                      <button
+                        onClick={handleClose}
+                        className="px-5 py-2.5 bg-neutral-900 text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-all shadow-md active:scale-95"
+                      >
+                        Вернуться к моделированию
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-4 rounded-2xl border border-neutral-200/80 bg-neutral-50/50 hover:bg-white hover:border-neutral-300 transition-all shadow-xs space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`w-3 h-3 rounded-full border border-neutral-300 ${item.materialColorClass}`} />
+                                <h4 className="text-sm font-bold text-neutral-900">{item.name}</h4>
+                              </div>
+                              <p className="text-xs text-neutral-500 mt-0.5">
+                                Материал: <span className="font-medium text-neutral-700">{item.materialName}</span>
+                              </p>
+                            </div>
+                            <span className="text-sm font-bold font-mono text-neutral-900">
+                              {formatPrice(item.price * item.quantity)}
+                            </span>
+                          </div>
+
+                          {/* Ring Specs Specs Tags */}
+                          <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-white p-2.5 rounded-xl border border-neutral-100 text-neutral-600">
+                            <div>
+                              Размер пальца: <span className="font-semibold text-neutral-900">{item.ringParams.innerDiameter} мм</span>
+                            </div>
+                            <div>
+                              Ширина: <span className="font-semibold text-neutral-900">{item.ringParams.width} мм</span>
+                            </div>
+                            <div className="col-span-2">
+                              Толщина: <span className="font-semibold text-neutral-900">{item.ringParams.thickness} мм</span>
+                            </div>
+                          </div>
+
+                          {/* Special details (Engraving & Inserts) */}
+                          {(item.inscriptionText || item.placedInsertsCount > 0) && (
+                            <div className="flex flex-wrap gap-2 text-[11px]">
+                              {item.inscriptionText && (
+                                <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-lg border border-purple-100 font-medium">
+                                  <Type className="w-3 h-3" />
+                                  Гравировка: «{item.inscriptionText}»
+                                </span>
+                              )}
+                              {item.placedInsertsCount > 0 && (
+                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg border border-amber-100 font-medium">
+                                  <Gem className="w-3 h-3" />
+                                  Вставки: {item.placedInsertsCount} шт.
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Quantity & Actions */}
+                          <div className="flex items-center justify-between pt-1 border-t border-neutral-200/50">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  if (item.stlBlobUrl) {
+                                    const link = document.createElement('a');
+                                    link.href = item.stlBlobUrl;
+                                    link.download = `${item.name.replace(/[^\w\dа-яА-Я_-]+/g, '_')}.stl`;
+                                    link.click();
+                                  } else {
+                                    onExportSTL();
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-white hover:bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200 transition-all cursor-pointer"
+                                title="Скачать сохраненную 3D-модель этой позиции в формате STL"
+                              >
+                                <Download className="w-3 h-3 text-emerald-600" />
+                                <span>3D STL</span>
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center rounded-lg border border-neutral-200 bg-white p-0.5">
+                                <button
+                                  onClick={() => onUpdateQuantity(item.id, -1)}
+                                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 active:scale-95 transition-all"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="w-6 text-center text-xs font-semibold text-neutral-800 font-mono">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => onUpdateQuantity(item.id, 1)}
+                                  className="p-1 hover:bg-neutral-100 rounded text-neutral-600 active:scale-95 transition-all"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <button
+                                onClick={() => onRemoveItem(item.id)}
+                                className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg active:scale-95 transition-all"
+                                title="Удалить из корзины"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {step === 'checkout' && (
+                <form onSubmit={handlePlaceOrder} className="space-y-4">
+                  {/* Order summary box */}
+                  <div className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-200/60 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-neutral-500">Заказ ({items.reduce((a, b) => a + b.quantity, 0)} изделия):</p>
+                      <p className="text-sm font-bold text-neutral-900">{formatPrice(totalPrice)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStep('cart')}
+                      className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 underline"
+                    >
+                      Изменить
+                    </button>
+                  </div>
+
+                  {/* Customer details */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                        Имя и Фамилия <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                        <input
+                          type="text"
+                          placeholder="Иван Иванов"
+                          value={orderDetails.customerName}
+                          onChange={(e) => setOrderDetails({ ...orderDetails, customerName: e.target.value })}
+                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                            formErrors.customerName ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
+                          }`}
+                        />
+                      </div>
+                      {formErrors.customerName && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.customerName}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                        Телефон для связи <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                        <input
+                          type="tel"
+                          placeholder="+7 (999) 000-00-00"
+                          value={orderDetails.phone}
+                          onChange={(e) => setOrderDetails({ ...orderDetails, phone: e.target.value })}
+                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                            formErrors.phone ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
+                          }`}
+                        />
+                      </div>
+                      {formErrors.phone && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.phone}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">Email для квитанции</label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                        <input
+                          type="email"
+                          placeholder="example@mail.ru"
+                          value={orderDetails.email}
+                          onChange={(e) => setOrderDetails({ ...orderDetails, email: e.target.value })}
+                          className="w-full pl-9 pr-3 py-2.5 bg-white border border-neutral-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Delivery Method */}
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">Способ получения</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'cdek', label: 'СДЭК / Почта' },
+                          { id: 'courier', label: 'Курьер' },
+                          { id: 'pickup', label: 'Самовывоз' },
+                        ].map((method) => (
+                          <button
+                            key={method.id}
+                            type="button"
+                            onClick={() => setOrderDetails({ ...orderDetails, deliveryMethod: method.id as any })}
+                            className={`py-2 px-2 text-[11px] font-medium rounded-xl border transition-all text-center ${
+                              orderDetails.deliveryMethod === method.id
+                                ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
+                            }`}
+                          >
+                            {method.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {orderDetails.deliveryMethod !== 'pickup' && (
+                      <div>
+                        <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                          Адрес доставки <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <MapPin className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+                          <textarea
+                            rows={2}
+                            placeholder="Город, улица, дом, квартира..."
+                            value={orderDetails.address}
+                            onChange={(e) => setOrderDetails({ ...orderDetails, address: e.target.value })}
+                            className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${
+                              formErrors.address ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
+                            }`}
+                          />
+                        </div>
+                        {formErrors.address && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.address}</p>}
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">Комментарий к заказу</label>
+                      <div className="relative">
+                        <FileText className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+                        <textarea
+                          rows={2}
+                          placeholder="Пожелания по гравировке, точным размерам или сплаву..."
+                          value={orderDetails.comment}
+                          onChange={(e) => setOrderDetails({ ...orderDetails, comment: e.target.value })}
+                          className="w-full pl-9 pr-3 py-2.5 bg-white border border-neutral-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Service Guarantees */}
+                  <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl space-y-1.5 text-[11px] text-emerald-800">
+                    <div className="flex items-center gap-1.5 font-semibold">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Гарантия точности 3D-модели</span>
+                    </div>
+                    <p className="text-emerald-700/90 leading-tight">
+                      Ювелир проверит вашу модель перед отливкой. Вы получите фото готового изделия перед отправкой.
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+>
+                      <span>{isSubmitting ? 'ОТПРАВКА ЗАКАЗА...' : 'ПОДТВЕРДИТЬ И ОФОРМИТЬ ЗАКАЗ'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {step === 'success' && (
+                <div className="h-full flex flex-col items-center justify-center text-center py-8">
+                  <motion.div
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', damping: 15 }}
+                    className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-5 shadow-lg shadow-emerald-100"
+                  >
+                    <CheckCircle2 className="w-10 h-10" />
+                  </motion.div>
+
+                  <h3 className="text-xl font-bold text-neutral-900 mb-1">Спасибо за заказ!</h3>
+                  <p className="text-xs text-neutral-500 mb-6 font-mono font-medium">
+                    Номер заказа: <span className="text-emerald-600 font-bold">{orderNumber}</span>
+                  </p>
+
+                  <div className="w-full bg-neutral-50 rounded-2xl border border-neutral-200/80 p-4 text-left space-y-3 mb-6 text-xs text-neutral-600">
+                    <div className="flex items-start gap-2.5">
+                      <Truck className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-neutral-900 block">Изготовление и доставка</span>
+                        <span className="text-[11px] text-neutral-500">Срок изготовления: 5-7 рабочих дней. Ювелир свяжется с вами по номеру <strong className="text-neutral-800">{orderDetails.phone}</strong>.</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2.5 pt-2 border-t border-neutral-200/60">
+                      <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-neutral-900 block">Параметры сохранены</span>
+                        <span className="text-[11px] text-neutral-500">Все 3D-файлы и математическая геометрия переданы на производство.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleClose}
+                    className="w-full py-3 bg-neutral-900 text-white font-semibold text-xs rounded-xl hover:bg-neutral-800 transition-all shadow-md active:scale-95"
+                  >
+                    Вернуться к моделированию
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer summary for cart step */}
+            {step === 'cart' && items.length > 0 && (
+              <div className="p-6 border-t border-neutral-100 bg-white space-y-3 shadow-lg">
+                <div className="space-y-1.5 text-xs text-neutral-500">
+                  <div className="flex justify-between">
+                    <span>Товары ({items.reduce((a, b) => a + b.quantity, 0)}):</span>
+                    <span className="font-mono text-neutral-800">{formatPrice(totalPrice)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Доставка:</span>
+                    <span className="text-emerald-600 font-medium">Бесплатно</span>
+                  </div>
+                  <div className="flex justify-between items-baseline pt-2 border-t border-neutral-100">
+                    <span className="text-sm font-bold text-neutral-900">Итого к оплате:</span>
+                    <span className="text-lg font-bold font-mono text-neutral-900">{formatPrice(totalPrice)}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setStep('checkout')}
+                  className="w-full py-3.5 px-4 bg-neutral-900 hover:bg-neutral-950 active:scale-[0.98] text-white rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg shadow-neutral-900/10 cursor-pointer"
+                >
+                  <span>ПЕРЕЙТИ К ОФОРМЛЕНИЮ</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      </div>
+    </AnimatePresence>
+  );
+};
