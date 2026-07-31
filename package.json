@@ -16,6 +16,7 @@
     "@types/three": "^0.185.1",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
+    "driver.js": "^1.8.0",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",

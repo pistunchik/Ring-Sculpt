@@ -45,6 +45,7 @@ import { ThreeCanvas } from './components/ThreeCanvas';
 import { SculptEngine, SculptTool, BrushConfig, RingParams, PlacedInsert } from './components/SculptEngine';
 import { CartDrawer } from './components/CartDrawer';
 import { CartItem } from './types';
+import { Onboarding } from './components/Onboarding';
 
 // Helper to filter micro-jitters / clustered points when drawing
 const filterMicroJitter = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
@@ -93,7 +94,7 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
 
   const draw = (ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) => {
     ctx.clearRect(0, 0, 150, 150);
-    
+
     // Draw blueprint-like dot grid
     ctx.fillStyle = '#e5e7eb';
     ctx.strokeStyle = '#f3f4f6';
@@ -145,7 +146,7 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    
+
     let clientX, clientY;
     if ('touches' in e) {
       if (e.touches.length === 0) return null;
@@ -155,7 +156,7 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
       clientX = e.clientX;
       clientY = e.clientY;
     }
-    
+
     return {
       x: clientX - rect.left,
       y: clientY - rect.top
@@ -321,7 +322,7 @@ export default function App() {
     engraving: string
   ) => {
     let basePrice = 1500;
-    return basePrice ;
+    return basePrice;
   };
 
   const handleAddToCart = () => {
@@ -346,7 +347,7 @@ export default function App() {
 
     const newItem: CartItem = {
       id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      name: `Кольцо Nebulae (${ringParams.innerDiameter.toFixed(1)} мм)`,
+      name: (() => { const n = new Date(); const hh = String(n.getHours()).padStart(2,'0'); const mm = String(n.getMinutes()).padStart(2,'0'); const ss = String(n.getSeconds()).padStart(2,'0'); return `NEB-${hh}${mm}${ss}`; })(),
       ringParams: { ...ringParams },
       materialPreset,
       materialName: currentMaterial?.name || materialPreset,
@@ -517,7 +518,7 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-screen flex flex-col md:flex-row overflow-hidden bg-[#f6f5f1] text-neutral-800 font-sans select-none antialiased">
-      
+
       {/* 1. Canvas Area */}
       <div className="relative flex-1 h-[50vh] md:h-full overflow-hidden" id="viewport-workspace">
         <ThreeCanvas
@@ -597,21 +598,19 @@ export default function App() {
         </AnimatePresence>
 
         {/* Top Control Panel: Undo/Redo/Reset, Finger Zones & Sound */}
-        <div className={`absolute top-5 right-5 z-10 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-sm transition-all duration-300 ${
-          isNight 
-            ? 'bg-neutral-900/90 border-neutral-800 text-white shadow-neutral-950/40' 
+        <div className={`absolute top-5 right-5 z-10 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-sm transition-all duration-300 ${isNight
+            ? 'bg-neutral-900/90 border-neutral-800 text-white shadow-neutral-950/40'
             : 'bg-white/80 border-neutral-200/40 text-neutral-800'
-        }`}>
+          }`}>
           {/* Finger Zone Toggle Button */}
           <button
             onClick={() => setShowFingerZones(!showFingerZones)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all border ${
-              showFingerZones
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all border ${showFingerZones
                 ? collisionState.hasCollision
                   ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
                   : 'bg-amber-50 text-amber-700 border-amber-300'
                 : 'text-neutral-500 hover:bg-neutral-100 border-transparent'
-            }`}
+              }`}
             title="Отображение зон 4 мм для соседних пальцев"
           >
             <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
@@ -622,11 +621,10 @@ export default function App() {
           <button
             onClick={triggerUndo}
             disabled={!canUndo}
-            className={`p-2 rounded-lg transition-all ${
-              canUndo 
-                ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95') 
+            className={`p-2 rounded-lg transition-all ${canUndo
+                ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
                 : 'text-neutral-500 cursor-not-allowed'
-            }`}
+              }`}
             title="Назад (Undo)"
           >
             <Undo2 className="w-4 h-4" />
@@ -635,11 +633,10 @@ export default function App() {
           <button
             onClick={triggerRedo}
             disabled={!canRedo}
-            className={`p-2 rounded-lg transition-all ${
-              canRedo 
-                ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95') 
+            className={`p-2 rounded-lg transition-all ${canRedo
+                ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
                 : 'text-neutral-500 cursor-not-allowed'
-            }`}
+              }`}
             title="Вперед (Redo)"
           >
             <Redo2 className="w-4 h-4" />
@@ -672,11 +669,10 @@ export default function App() {
 
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className={`p-2 rounded-lg transition-all active:scale-95 ${
-              soundEnabled 
-                ? (isNight ? 'text-teal-400 hover:bg-neutral-800' : 'text-neutral-700 hover:bg-neutral-100') 
+            className={`p-2 rounded-lg transition-all active:scale-95 ${soundEnabled
+                ? (isNight ? 'text-teal-400 hover:bg-neutral-800' : 'text-neutral-700 hover:bg-neutral-100')
                 : 'text-neutral-500 hover:bg-neutral-100'
-            }`}
+              }`}
             title={soundEnabled ? "Выключить звук" : "Включить звук"}
           >
             {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
@@ -687,11 +683,10 @@ export default function App() {
           {/* Cart Header Button */}
           <button
             onClick={() => setIsCartOpen(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95 cursor-pointer ${
-              cartItems.length > 0
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95 cursor-pointer ${cartItems.length > 0
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
                 : (isNight ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200' : 'bg-neutral-900 hover:bg-neutral-800 text-white')
-            }`}
+              }`}
             id="cart-header-button"
             title="Перейти в корзину для заказа"
           >
@@ -707,7 +702,7 @@ export default function App() {
       </div>
 
       {/* 2. Controls & Toolbars Sidebar */}
-      <div 
+      <div
         className="w-full md:w-[380px] h-[50vh] md:h-full bg-white border-t md:border-t-0 md:border-l border-neutral-200/60 shadow-2xl flex flex-col z-20 overflow-y-auto"
         id="controls-sidebar"
       >
@@ -798,11 +793,10 @@ export default function App() {
                 setActiveTab('sculpt');
                 setInsertType(null);
               }}
-              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${
-                activeTab === 'sculpt'
+              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'sculpt'
                   ? 'bg-white text-neutral-900 shadow-sm'
                   : 'text-neutral-500 hover:text-neutral-800'
-              }`}
+                }`}
             >
               Лепка
             </button>
@@ -811,11 +805,10 @@ export default function App() {
                 setActiveTab('inserts');
                 setInsertType('circle');
               }}
-              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${
-                activeTab === 'inserts'
+              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'inserts'
                   ? 'bg-white text-neutral-900 shadow-sm'
                   : 'text-neutral-500 hover:text-neutral-800'
-              }`}
+                }`}
             >
               Вставки
             </button>
@@ -824,11 +817,10 @@ export default function App() {
                 setActiveTab('inscription');
                 setInsertType(null);
               }}
-              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${
-                activeTab === 'inscription'
+              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'inscription'
                   ? 'bg-white text-neutral-900 shadow-sm'
                   : 'text-neutral-500 hover:text-neutral-800'
-              }`}
+                }`}
             >
               Гравировка
             </button>
@@ -850,11 +842,10 @@ export default function App() {
                   setBrushConfig({ ...brushConfig, isSubtract: false });
                   setInsertType(null);
                 }}
-                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${
-                  !brushConfig.isSubtract
+                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${!brushConfig.isSubtract
                     ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                     : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
-                }`}
+                  }`}
               >
                 <Plus className="w-4 h-4 text-emerald-500" />
                 Добавить
@@ -864,11 +855,10 @@ export default function App() {
                   setBrushConfig({ ...brushConfig, isSubtract: true });
                   setInsertType(null);
                 }}
-                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${
-                  brushConfig.isSubtract
+                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${brushConfig.isSubtract
                     ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                     : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
-                }`}
+                  }`}
               >
                 <Minus className="w-4 h-4 text-rose-500" />
                 Убрать
@@ -941,13 +931,11 @@ export default function App() {
                     onClick={() => {
                       setInsertType(item.id as any);
                     }}
-                    className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all ${
-                      item.isCustom ? 'row-span-2 h-full py-4' : ''
-                    } ${
-                      isSelected
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all ${item.isCustom ? 'row-span-2 h-full py-4' : ''
+                      } ${isSelected
                         ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                         : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-600'
-                    }`}
+                      }`}
                   >
                     <Icon className={`${item.isCustom ? 'w-5 h-5 mb-1.5' : 'w-4 h-4 mb-1'} ${isSelected ? 'text-white' : 'text-neutral-500'}`} />
                     <span className="font-medium text-[13px]">{item.name}</span>
@@ -1127,15 +1115,13 @@ export default function App() {
             </div>
             <button
               onClick={() => setSymmetryEnabled(!symmetryEnabled)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                symmetryEnabled ? 'bg-neutral-900' : 'bg-neutral-200'
-              }`}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${symmetryEnabled ? 'bg-neutral-900' : 'bg-neutral-200'
+                }`}
               id="symmetry-master-toggle"
             >
               <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                  symmetryEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`}
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${symmetryEnabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
               />
             </button>
           </div>
@@ -1184,35 +1170,31 @@ export default function App() {
                     </div>
                     <button
                       onClick={() => setSymmetryPlane(!symmetryPlane)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        symmetryPlane ? 'bg-emerald-600' : 'bg-neutral-200'
-                      }`}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${symmetryPlane ? 'bg-emerald-600' : 'bg-neutral-200'
+                        }`}
                       id="symmetry-plane-toggle"
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                          symmetryPlane ? 'translate-x-4' : 'translate-x-0'
-                        }`}
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${symmetryPlane ? 'translate-x-4' : 'translate-x-0'
+                          }`}
                       />
                     </button>
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-neutral-100/60">
                     <div>
-                      <span className="text-[13px] font-medium text-neutral-700 block">Зеркально перпендикулярно</span>
-                      <span className="text-[11px] text-neutral-400 block leading-tight">Перпендикулярно плоскости кольца</span>
+                      <span className="text-[13px] font-medium text-neutral-700 block">Зеркально по высоте</span>
+                      <span className="text-[11px] text-neutral-400 block leading-tight">Отражение вдоль высоты шинки</span>
                     </div>
                     <button
                       onClick={() => setSymmetryPlanePerp(!symmetryPlanePerp)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        symmetryPlanePerp ? 'bg-emerald-600' : 'bg-neutral-200'
-                      }`}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${symmetryPlanePerp ? 'bg-emerald-600' : 'bg-neutral-200'
+                        }`}
                       id="symmetry-plane-perp-toggle"
                     >
                       <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                          symmetryPlanePerp ? 'translate-x-4' : 'translate-x-0'
-                        }`}
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${symmetryPlanePerp ? 'translate-x-4' : 'translate-x-0'
+                          }`}
                       />
                     </button>
                   </div>
@@ -1229,7 +1211,7 @@ export default function App() {
               <Paintbrush className="w-4 h-4 text-neutral-500" />
               <h2 className="text-[13px] font-semibold uppercase tracking-wider text-neutral-400">Материал</h2>
             </div>
-            
+
             {/* Color/Material Dots */}
             <div className="flex flex-wrap gap-2.5">
               {materialPresetsList.map((preset) => {
@@ -1238,13 +1220,11 @@ export default function App() {
                   <button
                     key={preset.id}
                     onClick={() => setMaterialPreset(preset.id)}
-                    className={`group relative w-8 h-8 rounded-full border-2 transition-all active:scale-90 flex items-center justify-center ${
-                      preset.colorClass
-                    } ${
-                      isSelected 
-                        ? 'border-neutral-900 shadow-md scale-105' 
+                    className={`group relative w-8 h-8 rounded-full border-2 transition-all active:scale-90 flex items-center justify-center ${preset.colorClass
+                      } ${isSelected
+                        ? 'border-neutral-900 shadow-md scale-105'
                         : 'border-transparent hover:border-neutral-300'
-                    }`}
+                      }`}
                     title={preset.name}
                     id={`material-btn-${preset.id}`}
                   >
@@ -1266,7 +1246,7 @@ export default function App() {
                   <span className="text-[13px] font-bold text-neutral-700 tracking-wide uppercase">Освещение</span>
                 </div>
               </div>
-              
+
               <div className="relative flex items-center justify-center py-1">
                 <div className="absolute left-0 text-amber-500" title="Полдень">
                   <Sun className="w-3 h-3" />
@@ -1371,6 +1351,8 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* Interactive Onboarding Tour */}
+      <Onboarding />
     </div>
   );
 }

@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  X, 
-  ShoppingBag, 
-  Trash2, 
-  Plus, 
-  Minus, 
-  ArrowRight, 
-  CheckCircle2, 
-  Download, 
-  Truck, 
-  ShieldCheck, 
-  Gem, 
-  Type, 
+import {
+  X,
+  ShoppingBag,
+  Trash2,
+  Plus,
+  Minus,
+  ArrowRight,
+  CheckCircle2,
+  Download,
+  Truck,
+  ShieldCheck,
+  Gem,
+  Type,
   Sparkles,
   Phone,
   User,
@@ -73,8 +73,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     if (!orderDetails.phone.trim() || orderDetails.phone.length < 7) {
       errors.phone = 'Укажите контактный номер телефона';
     }
-    if (orderDetails.deliveryMethod !== 'pickup' && !orderDetails.address.trim()) {
-      errors.address = 'Укажите адрес доставки';
+    if (!orderDetails.email.trim()) {
+      errors.email = 'Укажите e-mail для квитанции';
+    }
+    if (!orderDetails.address.trim()) {
+      errors.address = 'Укажите пункт выдачи или адрес доставки';
     }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -86,36 +89,31 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
     setIsSubmitting(true);
 
-    const randomNum = Math.floor(10000 + Math.random() * 90000);
-    const newOrderNum = `NEB-${randomNum}`;
-
     try {
       const formData = new FormData();
-      formData.append('orderNumber', newOrderNum);
       formData.append('customerName', orderDetails.customerName);
       formData.append('phone', orderDetails.phone);
       formData.append('email', orderDetails.email || '');
-      formData.append('deliveryMethod', orderDetails.deliveryMethod);
       formData.append('address', orderDetails.address || '');
       formData.append('comment', orderDetails.comment || '');
       formData.append('items', JSON.stringify(items));
 
-      // Собираем 3D-модели (STL)
+      // Прикрепляем STL-файлы
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         if (item.stlBlobUrl) {
           try {
             const blobRes = await fetch(item.stlBlobUrl);
             const blob = await blobRes.blob();
-            formData.append('stlFiles', blob, `${newOrderNum}_Item_${i + 1}.stl`);
+            formData.append('stlFiles', blob, `Item_${i + 1}.stl`);
           } catch (fileErr) {
             console.error('Ошибка чтения STL блоба:', fileErr);
           }
         }
       }
 
-      // Если адрес API на сервере отличается, используется окно поиска или относительный адрес
-      const response = await fetch('/api/checkout', {
+      // Создаём платёж в ЮКассе
+      const response = await fetch('/api/create-payment', {
         method: 'POST',
         body: formData,
       });
@@ -123,15 +121,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Ошибка серверов Telegram');
+        throw new Error(result.error || 'Ошибка создания платежа');
       }
 
-      setOrderNumber(newOrderNum);
-      setStep('success');
+      // Сохраняем номер заказа
+      setOrderNumber(result.orderNumber);
       onClearCart();
+
+      // Если ЮКасса настроена — редирект на страницу оплаты.
+      // Если нет (dev-режим) — confirmationUrl начинается с '/', показываем экран успеха.
+      if (result.confirmationUrl.startsWith('http')) {
+        window.location.href = result.confirmationUrl;
+      } else {
+        setStep('success');
+      }
+
     } catch (err: any) {
       console.error('Ошибка оформления заказа:', err);
-      alert(`Ошибка при отправке заказа: ${err.message || 'Проверьте соединение с сервером'}`);
+      alert(`Ошибка при создании платежа: ${err.message || 'Проверьте соединение с сервером'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -179,7 +186,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </h2>
                   <p className="text-xs text-neutral-500">
                     {step === 'cart' && `${items.reduce((a, b) => a + b.quantity, 0)} шт. в корзине`}
-                    {step === 'checkout' && 'Заполните данные для ювелира'}
+                    {step === 'checkout' && 'Заполните данные для заказа'}
                     {step === 'success' && `Заказ №${orderNumber}`}
                   </p>
                 </div>
@@ -255,12 +262,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                   Гравировка: «{item.inscriptionText}»
                                 </span>
                               )}
-                              {item.placedInsertsCount > 0 && (
-                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg border border-amber-100 font-medium">
-                                  <Gem className="w-3 h-3" />
-                                  Вставки: {item.placedInsertsCount} шт.
-                                </span>
-                              )}
+
                             </div>
                           )}
 
@@ -346,9 +348,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           placeholder="Иван Иванов"
                           value={orderDetails.customerName}
                           onChange={(e) => setOrderDetails({ ...orderDetails, customerName: e.target.value })}
-                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                            formErrors.customerName ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
-                          }`}
+                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${formErrors.customerName ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
+                            }`}
                         />
                       </div>
                       {formErrors.customerName && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.customerName}</p>}
@@ -365,16 +366,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           placeholder="+7 (999) 000-00-00"
                           value={orderDetails.phone}
                           onChange={(e) => setOrderDetails({ ...orderDetails, phone: e.target.value })}
-                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                            formErrors.phone ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
-                          }`}
+                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${formErrors.phone ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
+                            }`}
                         />
                       </div>
                       {formErrors.phone && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.phone}</p>}
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-700 mb-1">Email для квитанции</label>
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">Email для квитанции <span className="text-rose-500">*</span></label>
                       <div className="relative">
                         <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
                         <input
@@ -382,55 +382,37 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           placeholder="example@mail.ru"
                           value={orderDetails.email}
                           onChange={(e) => setOrderDetails({ ...orderDetails, email: e.target.value })}
-                          className="w-full pl-9 pr-3 py-2.5 bg-white border border-neutral-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-all"
+                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${formErrors.email ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'}`}
                         />
+                      </div>
+                      {formErrors.email && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.email}</p>}
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900">
+                      <Truck className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                      <div className="leading-relaxed">
+                        <span className="font-bold block mb-0.5">Бесплатная доставка</span>
+                        Заказ будет доставлен в ближайший пункт выдачи&nbsp;
+                        <span className="font-semibold">Яндекс&nbsp;Маркет</span> — бесплатно, без доплат.
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-700 mb-1">Способ получения</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { id: 'cdek', label: 'СДЭК / Почта' },
-                          { id: 'courier', label: 'Курьер' },
-                          { id: 'pickup', label: 'Самовывоз' },
-                        ].map((method) => (
-                          <button
-                            key={method.id}
-                            type="button"
-                            onClick={() => setOrderDetails({ ...orderDetails, deliveryMethod: method.id as any })}
-                            className={`py-2 px-2 text-[11px] font-medium rounded-xl border transition-all text-center cursor-pointer ${
-                              orderDetails.deliveryMethod === method.id
-                                ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
-                                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
-                            }`}
-                          >
-                            {method.label}
-                          </button>
-                        ))}
+                      <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                        Пункт выдачи / Адрес <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <MapPin className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
+                        <textarea
+                          rows={2}
+                          placeholder="Город, ближайший пункт Яндекс Маркет или адрес..."
+                          value={orderDetails.address}
+                          onChange={(e) => setOrderDetails({ ...orderDetails, address: e.target.value })}
+                          className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${formErrors.address ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'}`}
+                        />
                       </div>
+                      {formErrors.address && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.address}</p>}
                     </div>
-
-                    {orderDetails.deliveryMethod !== 'pickup' && (
-                      <div>
-                        <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                          Адрес доставки <span className="text-rose-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <MapPin className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
-                          <textarea
-                            rows={2}
-                            placeholder="Город, улица, дом, квартира..."
-                            value={orderDetails.address}
-                            onChange={(e) => setOrderDetails({ ...orderDetails, address: e.target.value })}
-                            className={`w-full pl-9 pr-3 py-2.5 bg-white border text-xs rounded-xl focus:outline-none focus:ring-2 transition-all ${
-                              formErrors.address ? 'border-rose-400 focus:ring-rose-200' : 'border-neutral-200 focus:ring-neutral-900/10 focus:border-neutral-900'
-                            }`}
-                          />
-                        </div>
-                        {formErrors.address && <p className="text-[11px] text-rose-500 mt-0.5">{formErrors.address}</p>}
-                      </div>
-                    )}
 
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1">Комментарий к заказу</label>
@@ -438,7 +420,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <FileText className="w-4 h-4 absolute left-3 top-3 text-neutral-400" />
                         <textarea
                           rows={2}
-                          placeholder="Пожелания по гравировке, точным размерам или сплаву..."
+                          placeholder="Пожелания к заказу..."
                           value={orderDetails.comment}
                           onChange={(e) => setOrderDetails({ ...orderDetails, comment: e.target.value })}
                           className="w-full pl-9 pr-3 py-2.5 bg-white border border-neutral-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:border-neutral-900 transition-all"
@@ -447,17 +429,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl space-y-1.5 text-[11px] text-emerald-800">
-                    <div className="flex items-center gap-1.5 font-semibold">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      <span>Гарантия точности 3D-модели</span>
-                    </div>
-                    <p className="text-emerald-700/90 leading-tight">
-                      Модели мгновенно приходят в Telegram бота вместе с данными заказа.
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <button
                       type="submit"
                       disabled={isSubmitting}
@@ -466,15 +438,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       {isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>ОТПРАВКА В TELEGRAM...</span>
+                          <span>СОЗДАЁМ ПЛАТЁЖ...</span>
                         </>
                       ) : (
                         <>
-                          <span>ПОДТВЕРДИТЬ И ОФОРМИТЬ ЗАКАЗ</span>
+                          <span>🔒 ПЕРЕЙТИ К ОПЛАТЕ</span>
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}
                     </button>
+                    <p className="text-center text-[11px] text-neutral-400">
+                      Безопасная оплата через&nbsp;<span className="font-semibold text-neutral-600">ЮКасса</span>.
+                      После оплаты заказ автоматически поступит в обработку.
+                    </p>
                   </div>
                 </form>
               )}
