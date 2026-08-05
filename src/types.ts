@@ -4,6 +4,19 @@ export interface RingParams {
   thickness: number;
 }
 
+export interface EditorSnapshot {
+  ringParams: RingParams;
+  materialPreset: string;
+  inscriptionText: string;
+  inscriptionDepth: number;
+  inscriptionSize: number;
+  inscriptionWeight: number;
+  placedInserts: any[];
+  sculptedPositions?: number[];
+  stlDataUrl?: string;
+  stlFileName?: string;
+}
+
 export interface CartItem {
   id: string;
   name: string;
@@ -18,6 +31,10 @@ export interface CartItem {
   addedAt: string;
   stlBlobUrl?: string;
   stlDataUrl?: string;
+  /** JPEG data URL of the canvas at the moment of adding to cart */
+  previewDataUrl?: string;
+  /** Full editor state to restore when user clicks "Edit" */
+  editorSnapshot?: EditorSnapshot;
 }
 
 export interface OrderDetails {
@@ -28,3 +45,4 @@ export interface OrderDetails {
   address: string;
   comment: string;
 }
+
