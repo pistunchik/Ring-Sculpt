@@ -4,10 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-<<<<<<< HEAD
-=======
 import nodemailer from 'nodemailer';
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
 dotenv.config();
 
@@ -29,12 +26,6 @@ app.use((req, res, next) => {
 });
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
-<<<<<<< HEAD
-const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || process.env.VITE_TELEGRAM_CHAT_ID;
-const YUKASSA_SHOP_ID    = process.env.YUKASSA_SHOP_ID;
-const YUKASSA_SECRET_KEY = process.env.YUKASSA_SECRET_KEY;
-
-=======
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || process.env.VITE_TELEGRAM_CHAT_ID;
 const YUKASSA_SHOP_ID = process.env.YUKASSA_SHOP_ID;
 const YUKASSA_SECRET_KEY = process.env.YUKASSA_SECRET_KEY;
@@ -46,7 +37,6 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const SMTP_FROM = process.env.SMTP_FROM || 'Nebulae Support <support@nebulae.ru>';
 
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 // In-memory store: paymentId → { orderNumber, orderDetails, items, stlBuffers }
 // (persists until server restart; для продакшна — замените на Redis/DB)
 const pendingOrders = new Map();
@@ -56,15 +46,9 @@ const pendingOrders = new Map();
 ───────────────────────────────────────────────────────────── */
 function buildOrderNum() {
   const now = new Date();
-<<<<<<< HEAD
-  const dd  = String(now.getDate()).padStart(2, '0');
-  const mo  = String(now.getMonth() + 1).padStart(2, '0');
-  const yy  = String(now.getFullYear()).slice(-2);
-=======
   const dd = String(now.getDate()).padStart(2, '0');
   const mo = String(now.getMonth() + 1).padStart(2, '0');
   const yy = String(now.getFullYear()).slice(-2);
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
   const key = `nebulae_order_seq_${dd}${mo}${yy}`;
   // простой счётчик в памяти — при рестарте сервера начинается заново
   if (!buildOrderNum._counters) buildOrderNum._counters = {};
@@ -129,8 +113,6 @@ async function sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBu
   }
 }
 
-<<<<<<< HEAD
-=======
 function createEmailTransporter() {
   if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
     return nodemailer.createTransport({
@@ -305,7 +287,6 @@ async function sendOrderEmail(orderNumber, orderDetails, parsedItems) {
   }
 }
 
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 /* ─────────────────────────────────────────────────────────────
    POST /api/create-payment
    Принимает FormData с данными заказа + STL-файлы.
@@ -315,11 +296,7 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
   try {
     // Если ЮКасса не настроена — отправляем заказ напрямую в Telegram (режим разработки)
     if (!YUKASSA_SHOP_ID || !YUKASSA_SECRET_KEY ||
-<<<<<<< HEAD
-        YUKASSA_SHOP_ID === 'ВАШ_SHOP_ID' || YUKASSA_SECRET_KEY === 'ВАШ_SECRET_KEY') {
-=======
       YUKASSA_SHOP_ID === 'ВАШ_SHOP_ID' || YUKASSA_SECRET_KEY === 'ВАШ_SECRET_KEY') {
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       console.warn('[WARN] ЮКасса не настроена — отправляем заказ напрямую в Telegram.');
       const { customerName, phone, email, address, comment, items } = req.body;
       const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
@@ -334,14 +311,11 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
         parsedItems,
         stlBuffers
       );
-<<<<<<< HEAD
-=======
       await sendOrderEmail(
         orderNumber,
         { customerName, phone, email, address, comment, deliveryMethod: 'yandex_market' },
         parsedItems
       );
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       return res.json({
         success: true,
         orderNumber,
@@ -460,12 +434,8 @@ app.post('/api/payment-webhook', async (req, res) => {
       pendingOrders.delete(paymentId);
 
       await sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBuffers);
-<<<<<<< HEAD
-      console.log(`[WEBHOOK] Заказ №${orderNumber} успешно отправлен в Telegram.`);
-=======
       await sendOrderEmail(orderNumber, orderDetails, parsedItems);
       console.log(`[WEBHOOK] Заказ №${orderNumber} успешно отправлен в Telegram и на Email.`);
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
     }
 
     res.sendStatus(200);
@@ -494,14 +464,11 @@ app.post('/api/checkout', upload.array('stlFiles'), async (req, res) => {
       parsedItems,
       stlBuffers
     );
-<<<<<<< HEAD
-=======
     await sendOrderEmail(
       orderNumber,
       { customerName, phone, email, deliveryMethod, address, comment },
       parsedItems
     );
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
     res.status(200).json({ success: true });
   } catch (err) {

@@ -156,15 +156,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       formData.append('comment', orderDetails.comment || '');
       formData.append('items', JSON.stringify(selectedItems));
 
-<<<<<<< HEAD
-      // Прикрепляем STL-файлы
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-=======
       // Прикрепляем STL-файлы только для выбранных товаров
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
         if (item.stlBlobUrl) {
           try {
             const blobRes = await fetch(item.stlBlobUrl);
@@ -186,22 +180,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Ошибка создания платежа');
-<<<<<<< HEAD
-      }
-
-      // Сохраняем номер заказа
-      setOrderNumber(result.orderNumber);
-      onClearCart();
-
-      // Если ЮКасса настроена — редирект на страницу оплаты.
-      // Если нет (dev-режим) — confirmationUrl начинается с '/', показываем экран успеха.
-      if (result.confirmationUrl.startsWith('http')) {
-        window.location.href = result.confirmationUrl;
-      } else {
-        setStep('success');
-      }
-
-=======
       }
 
       // Сохраняем номер заказа и удаляем только оплаченные товары из корзины
@@ -216,7 +194,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         setStep('success');
       }
 
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
     } catch (err: any) {
       console.error('Ошибка оформления заказа:', err);
       alert(`Ошибка при создании платежа: ${err.message || 'Проверьте соединение с сервером'}`);
@@ -434,55 +411,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                   </button>
                                 )}
 
-<<<<<<< HEAD
-                          <div className="grid grid-cols-2 gap-1.5 text-[11px] bg-white p-2.5 rounded-xl border border-neutral-100 text-neutral-600">
-                            <div>
-                              Размер пальца: <span className="font-semibold text-neutral-900">{item.ringParams.innerDiameter} мм</span>
-                            </div>
-                            <div>
-                              Ширина: <span className="font-semibold text-neutral-900">{item.ringParams.width} мм</span>
-                            </div>
-                            <div className="col-span-2">
-                              Толщина: <span className="font-semibold text-neutral-900">{item.ringParams.thickness} мм</span>
-                            </div>
-                          </div>
-
-                          {(item.inscriptionText || item.placedInsertsCount > 0) && (
-                            <div className="flex flex-wrap gap-2 text-[11px]">
-                              {item.inscriptionText && (
-                                <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-lg border border-purple-100 font-medium">
-                                  <Type className="w-3 h-3" />
-                                  Гравировка: «{item.inscriptionText}»
-                                </span>
-                              )}
-
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between pt-1 border-t border-neutral-200/50">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  if (item.stlBlobUrl) {
-                                    const link = document.createElement('a');
-                                    link.href = item.stlBlobUrl;
-                                    link.download = `${item.name.replace(/[^\w\dа-яА-Я_-]+/g, '_')}.stl`;
-                                    link.click();
-                                  } else {
-                                    onExportSTL();
-                                  }
-                                }}
-                                className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-white hover:bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200 transition-all cursor-pointer"
-                              >
-                                <Download className="w-3 h-3 text-emerald-600" />
-                                <span>3D STL</span>
-                              </button>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center rounded-lg border border-neutral-200 bg-white p-0.5">
-=======
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                                 <button
                                   onClick={() => {
                                     if (item.stlBlobUrl) {
@@ -665,11 +593,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </>
                       ) : (
                         <>
-<<<<<<< HEAD
-                          <span>🔒 ПЕРЕЙТИ К ОПЛАТЕ</span>
-=======
                           <span>ПЕРЕЙТИ К ОПЛАТЕ</span>
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}

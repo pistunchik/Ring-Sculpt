@@ -50,17 +50,12 @@ import gifInscription from './gifs/Подсказка_гравировка.gif';
 import { ThreeCanvas } from './components/ThreeCanvas';
 import { SculptEngine, SculptTool, BrushConfig, RingParams, PlacedInsert } from './components/SculptEngine';
 import { CartDrawer } from './components/CartDrawer';
-<<<<<<< HEAD
-import { CartItem } from './types';
-import { Onboarding } from './components/Onboarding';
-=======
 import { CartItem, EditorSnapshot } from './types';
 import { Onboarding } from './components/Onboarding';
 import { MainMenu } from './components/MainMenu';
 import { useRouter } from './router';
 import { AboutPage } from './pages/AboutPage';
 import { SuccessPage } from './pages/SuccessPage';
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
 // Helper to filter micro-jitters / clustered points when drawing
 const filterMicroJitter = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
@@ -369,11 +364,6 @@ interface HelpModalData {
       }
     }
 
-<<<<<<< HEAD
-    const newItem: CartItem = {
-      id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-      name: (() => { const n = new Date(); const hh = String(n.getHours()).padStart(2,'0'); const mm = String(n.getMinutes()).padStart(2,'0'); const ss = String(n.getSeconds()).padStart(2,'0'); return `NEB-${hh}${mm}${ss}`; })(),
-=======
     // Capture canvas preview thumbnail
     let previewDataUrl: string | undefined;
     if (captureSnapshotRef.current) {
@@ -382,7 +372,6 @@ interface HelpModalData {
 
     // Save full editor state so user can return to editing
     const editorSnapshot: EditorSnapshot = {
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       ringParams: { ...ringParams },
       materialPreset,
       inscriptionText,
@@ -761,29 +750,17 @@ interface HelpModalData {
 
         {/* Top Control Panel: Undo/Redo/Reset, Finger Zones & Sound */}
         <div className={`absolute top-5 right-5 z-10 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-sm transition-all duration-300 ${isNight
-<<<<<<< HEAD
-            ? 'bg-neutral-900/90 border-neutral-800 text-white shadow-neutral-950/40'
-            : 'bg-white/80 border-neutral-200/40 text-neutral-800'
-=======
           ? 'bg-neutral-900/90 border-neutral-800 text-white shadow-neutral-950/40'
           : 'bg-white/80 border-neutral-200/40 text-neutral-800'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
           }`}>
           {/* Finger Zone Toggle Button */}
           <button
             onClick={() => setShowFingerZones(!showFingerZones)}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all border ${showFingerZones
-<<<<<<< HEAD
-                ? collisionState.hasCollision
-                  ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
-                  : 'bg-amber-50 text-amber-700 border-amber-300'
-                : 'text-neutral-500 hover:bg-neutral-100 border-transparent'
-=======
               ? collisionState.hasCollision
                 ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
                 : 'bg-amber-50 text-amber-700 border-amber-300'
               : 'text-neutral-500 hover:bg-neutral-100 border-transparent'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title="Отображение зон 4 мм для соседних пальцев"
           >
@@ -796,13 +773,8 @@ interface HelpModalData {
             onClick={triggerUndo}
             disabled={!canUndo}
             className={`p-2 rounded-lg transition-all ${canUndo
-<<<<<<< HEAD
-                ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
-                : 'text-neutral-500 cursor-not-allowed'
-=======
               ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
               : 'text-neutral-500 cursor-not-allowed'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title="Назад (Undo)"
           >
@@ -813,13 +785,8 @@ interface HelpModalData {
             onClick={triggerRedo}
             disabled={!canRedo}
             className={`p-2 rounded-lg transition-all ${canRedo
-<<<<<<< HEAD
-                ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
-                : 'text-neutral-500 cursor-not-allowed'
-=======
               ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
               : 'text-neutral-500 cursor-not-allowed'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title="Вперед (Redo)"
           >
@@ -854,13 +821,8 @@ interface HelpModalData {
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={`p-2 rounded-lg transition-all active:scale-95 ${soundEnabled
-<<<<<<< HEAD
-                ? (isNight ? 'text-teal-400 hover:bg-neutral-800' : 'text-neutral-700 hover:bg-neutral-100')
-                : 'text-neutral-500 hover:bg-neutral-100'
-=======
               ? (isNight ? 'text-teal-400 hover:bg-neutral-800' : 'text-neutral-700 hover:bg-neutral-100')
               : 'text-neutral-500 hover:bg-neutral-100'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title={soundEnabled ? "Выключить звук" : "Включить звук"}
           >
@@ -873,13 +835,8 @@ interface HelpModalData {
           <button
             onClick={() => setIsCartOpen(true)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95 cursor-pointer ${cartItems.length > 0
-<<<<<<< HEAD
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
-                : (isNight ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200' : 'bg-neutral-900 hover:bg-neutral-800 text-white')
-=======
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
               : (isNight ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200' : 'bg-neutral-900 hover:bg-neutral-800 text-white')
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             id="cart-header-button"
             title="Перейти в корзину для заказа"
@@ -987,15 +944,9 @@ interface HelpModalData {
                 setActiveTab('sculpt');
                 setInsertType(null);
               }}
-<<<<<<< HEAD
-              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'sculpt'
-                  ? 'bg-white text-neutral-900 shadow-sm'
-                  : 'text-neutral-500 hover:text-neutral-800'
-=======
               className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${activeTab === 'sculpt'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-500 hover:text-neutral-800'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                 }`}
             >
               <span>Лепка</span>
@@ -1005,15 +956,9 @@ interface HelpModalData {
                 setActiveTab('inserts');
                 setInsertType('circle');
               }}
-<<<<<<< HEAD
-              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'inserts'
-                  ? 'bg-white text-neutral-900 shadow-sm'
-                  : 'text-neutral-500 hover:text-neutral-800'
-=======
               className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${activeTab === 'inserts'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-500 hover:text-neutral-800'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                 }`}
             >
               <span>Вставки</span>
@@ -1037,15 +982,9 @@ interface HelpModalData {
                 setActiveTab('inscription');
                 setInsertType(null);
               }}
-<<<<<<< HEAD
-              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'inscription'
-                  ? 'bg-white text-neutral-900 shadow-sm'
-                  : 'text-neutral-500 hover:text-neutral-800'
-=======
               className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${activeTab === 'inscription'
                 ? 'bg-white text-neutral-900 shadow-sm'
                 : 'text-neutral-500 hover:text-neutral-800'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                 }`}
             >
               <span>Гравировка</span>
@@ -1082,15 +1021,9 @@ interface HelpModalData {
                   setBrushConfig({ ...brushConfig, isSubtract: false });
                   setInsertType(null);
                 }}
-<<<<<<< HEAD
-                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${!brushConfig.isSubtract
-                    ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
-                    : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
-=======
                 className={`flex items-center justify-center gap-1.5 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${!brushConfig.isSubtract
                   ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                   : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                   }`}
               >
                 <Plus className="w-4 h-4 text-emerald-500" />
@@ -1118,15 +1051,9 @@ interface HelpModalData {
                   setBrushConfig({ ...brushConfig, isSubtract: true });
                   setInsertType(null);
                 }}
-<<<<<<< HEAD
-                className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${brushConfig.isSubtract
-                    ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
-                    : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
-=======
                 className={`flex items-center justify-center gap-1.5 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${brushConfig.isSubtract
                   ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                   : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                   }`}
               >
                 <Minus className="w-4 h-4 text-rose-500" />
@@ -1542,13 +1469,8 @@ interface HelpModalData {
                     onClick={() => setMaterialPreset(preset.id)}
                     className={`group relative w-8 h-8 rounded-full border-2 transition-all active:scale-90 flex items-center justify-center ${preset.colorClass
                       } ${isSelected
-<<<<<<< HEAD
-                        ? 'border-neutral-900 shadow-md scale-105'
-                        : 'border-transparent hover:border-neutral-300'
-=======
                         ? 'border-emerald-500 ring-2 ring-emerald-500/30 shadow-md scale-105'
                         : 'border-neutral-300 hover:border-neutral-400'
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                       }`}
                     title={preset.name}
                     id={`material-btn-${preset.id}`}
@@ -1705,8 +1627,6 @@ interface HelpModalData {
           </motion.div>
         )}
       </AnimatePresence>
-<<<<<<< HEAD
-=======
       {/* Video Help Modal */}
       <AnimatePresence>
         {helpModal && (
@@ -1762,7 +1682,6 @@ interface HelpModalData {
         )}
       </AnimatePresence>
 
->>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       {/* Interactive Onboarding Tour */}
       <Onboarding />
     </div>
