@@ -39,13 +39,28 @@ import {
   Square,
   AlertTriangle,
   ShieldAlert,
-  ShoppingBag
+  ShoppingBag,
+  HelpCircle,
+  X
 } from 'lucide-react';
+import gifAdd from './gifs/Подсказка_Добавить.gif';
+import gifSubtract from './gifs/Подсказка_Убать.gif';
+import gifInsert from './gifs/Подсказка_Вставка.gif';
+import gifInscription from './gifs/Подсказка_гравировка.gif';
 import { ThreeCanvas } from './components/ThreeCanvas';
 import { SculptEngine, SculptTool, BrushConfig, RingParams, PlacedInsert } from './components/SculptEngine';
 import { CartDrawer } from './components/CartDrawer';
+<<<<<<< HEAD
 import { CartItem } from './types';
 import { Onboarding } from './components/Onboarding';
+=======
+import { CartItem, EditorSnapshot } from './types';
+import { Onboarding } from './components/Onboarding';
+import { MainMenu } from './components/MainMenu';
+import { useRouter } from './router';
+import { AboutPage } from './pages/AboutPage';
+import { SuccessPage } from './pages/SuccessPage';
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
 // Helper to filter micro-jitters / clustered points when drawing
 const filterMicroJitter = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
@@ -269,11 +284,18 @@ export default function App() {
   const [redoCounter, setRedoCounter] = useState(0);
   const [exportCounter, setExportCounter] = useState(0);
 
+interface HelpModalData {
+  title: string;
+  gif: string;
+  description: string;
+}
+
   // 5. Active Engine Reference for tracking undo/redo availability
   const [sculptEngine, setSculptEngine] = useState<SculptEngine | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [activeTab, setActiveTab] = useState<'sculpt' | 'inserts' | 'inscription'>('sculpt');
+  const [helpModal, setHelpModal] = useState<HelpModalData | null>(null);
 
   // 6. Inscription State
   const [inscriptionText, setInscriptionText] = useState("");
@@ -304,6 +326,9 @@ export default function App() {
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartToast, setCartToast] = useState<{ show: boolean; message: string } | null>(null);
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
+  // Callback provided by ThreeCanvas to capture a JPEG snapshot of the current render
+  const captureSnapshotRef = useRef<(() => string) | null>(null);
 
   useEffect(() => {
     try {
@@ -335,7 +360,6 @@ export default function App() {
     );
 
     let stlBlobUrl: string | undefined;
-
     if (sculptEngine) {
       try {
         const blob = sculptEngine.generateSTLBlob();
@@ -345,27 +369,82 @@ export default function App() {
       }
     }
 
+<<<<<<< HEAD
     const newItem: CartItem = {
       id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       name: (() => { const n = new Date(); const hh = String(n.getHours()).padStart(2,'0'); const mm = String(n.getMinutes()).padStart(2,'0'); const ss = String(n.getSeconds()).padStart(2,'0'); return `NEB-${hh}${mm}${ss}`; })(),
+=======
+    // Capture canvas preview thumbnail
+    let previewDataUrl: string | undefined;
+    if (captureSnapshotRef.current) {
+      try { previewDataUrl = captureSnapshotRef.current(); } catch {}
+    }
+
+    // Save full editor state so user can return to editing
+    const editorSnapshot: EditorSnapshot = {
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       ringParams: { ...ringParams },
       materialPreset,
-      materialName: currentMaterial?.name || materialPreset,
-      materialColorClass: currentMaterial?.colorClass || 'bg-neutral-300',
       inscriptionText,
-      placedInsertsCount: placedInserts.length,
-      price: calculatedPrice,
-      quantity: 1,
-      addedAt: new Date().toISOString(),
-      stlBlobUrl,
+      inscriptionDepth,
+      inscriptionSize,
+      inscriptionWeight,
+      placedInserts: JSON.parse(JSON.stringify(placedInserts)),
+      sculptedPositions: sculptEngine ? Array.from(sculptEngine.currentPositions) : undefined,
     };
 
-    setCartItems((prev) => [...prev, newItem]);
+    if (editingCartItemId) {
+      // Update existing item in cart
+      setCartItems((prev) =>
+        prev.map((item) => {
+          if (item.id === editingCartItemId) {
+            return {
+              ...item,
+              ringParams: { ...ringParams },
+              materialPreset,
+              materialName: currentMaterial?.name || materialPreset,
+              materialColorClass: currentMaterial?.colorClass || 'bg-neutral-300',
+              inscriptionText,
+              placedInsertsCount: placedInserts.length,
+              price: calculatedPrice,
+              stlBlobUrl: stlBlobUrl || item.stlBlobUrl,
+              previewDataUrl: previewDataUrl || item.previewDataUrl,
+              editorSnapshot,
+            };
+          }
+          return item;
+        })
+      );
+      setEditingCartItemId(null);
+      setCartToast({
+        show: true,
+        message: 'Изменения модели сохранены!',
+      });
+    } else {
+      // Create new cart item
+      const newItem: CartItem = {
+        id: 'item_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        name: (() => { const n = new Date(); const hh = String(n.getHours()).padStart(2, '0'); const mm = String(n.getMinutes()).padStart(2, '0'); const ss = String(n.getSeconds()).padStart(2, '0'); return `NEB-${hh}${mm}${ss}`; })(),
+        ringParams: { ...ringParams },
+        materialPreset,
+        materialName: currentMaterial?.name || materialPreset,
+        materialColorClass: currentMaterial?.colorClass || 'bg-neutral-300',
+        inscriptionText,
+        placedInsertsCount: placedInserts.length,
+        price: calculatedPrice,
+        quantity: 1,
+        addedAt: new Date().toISOString(),
+        stlBlobUrl,
+        previewDataUrl,
+        editorSnapshot,
+      };
 
-    setCartToast({
-      show: true,
-      message: 'Модель добавлена в корзину!',
-    });
+      setCartItems((prev) => [...prev, newItem]);
+      setCartToast({
+        show: true,
+        message: 'Модель добавлена в корзину!',
+      });
+    }
 
     setTimeout(() => {
       setCartToast(null);
@@ -388,10 +467,77 @@ export default function App() {
 
   const handleRemoveCartItem = (id: string) => {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
+    if (editingCartItemId === id) {
+      setEditingCartItemId(null);
+    }
   };
 
   const handleClearCart = () => {
     setCartItems([]);
+    setEditingCartItemId(null);
+  };
+
+  const handleOpenEditorWithSnapshot = (snapshot?: EditorSnapshot) => {
+    if (!snapshot) return;
+    if (snapshot.ringParams) {
+      setRingParams({ ...snapshot.ringParams });
+    }
+    if (snapshot.materialPreset) {
+      setMaterialPreset(snapshot.materialPreset);
+    }
+    if (snapshot.inscriptionText !== undefined) {
+      setInscriptionText(snapshot.inscriptionText);
+    }
+    if (snapshot.inscriptionDepth !== undefined) {
+      setInscriptionDepth(snapshot.inscriptionDepth);
+    }
+    if (snapshot.inscriptionSize !== undefined) {
+      setInscriptionSize(snapshot.inscriptionSize);
+    }
+    if (snapshot.inscriptionWeight !== undefined) {
+      setInscriptionWeight(snapshot.inscriptionWeight);
+    }
+    if (snapshot.placedInserts) {
+      setPlacedInserts(JSON.parse(JSON.stringify(snapshot.placedInserts)));
+    }
+    if (snapshot.stlDataUrl && sculptEngine) {
+      sculptEngine.loadSTLDataUrl(snapshot.stlDataUrl);
+    }
+  };
+
+  /** Restore editor state from a cart item so the user can continue editing */
+  const handleEditCartItem = (id: string) => {
+    const item = cartItems.find((c) => c.id === id);
+    if (!item?.editorSnapshot) return;
+    const snap = item.editorSnapshot;
+
+    setEditingCartItemId(id);
+    setRingParams({ ...snap.ringParams });
+    setMaterialPreset(snap.materialPreset);
+    setInscriptionText(snap.inscriptionText || "");
+    setInscriptionDepth(snap.inscriptionDepth ?? 50);
+    setInscriptionSize(snap.inscriptionSize ?? 100);
+    setInscriptionWeight(snap.inscriptionWeight ?? 2);
+    setPlacedInserts(JSON.parse(JSON.stringify(snap.placedInserts || [])));
+
+    // Rebuild 3D ring mesh with restored parameters
+    setTriggerReset((prev) => prev + 1);
+
+    // If custom sculpted positions exist, restore them after reset
+    if (snap.sculptedPositions && snap.sculptedPositions.length > 0) {
+      setTimeout(() => {
+        if (sculptEngine && sculptEngine.currentPositions.length === snap.sculptedPositions!.length) {
+          sculptEngine.currentPositions.set(snap.sculptedPositions!);
+          sculptEngine.updateGeometryBuffer();
+        }
+      }, 80);
+    }
+
+    setIsCartOpen(false);
+    setCartToast({
+      show: true,
+      message: `Редактирование: ${item.name}`,
+    });
   };
 
   // Helper to normalize, center, and invert drawing points coordinates for extrusion
@@ -464,6 +610,7 @@ export default function App() {
 
   // Synchronize undo/redo state and listen to Ctrl+Z / Ctrl+Y key events
   useEffect(() => {
+
     const handleMouseUpSync = () => {
       if (sculptEngine) {
         setCanUndo(sculptEngine.canUndo());
@@ -509,12 +656,23 @@ export default function App() {
     { id: 'pastel_yellow', name: 'желтый', colorClass: 'bg-[#ffe600]' },
     { id: 'pastel_light_green', name: 'зеленый', colorClass: 'bg-[#00e676]' },
     { id: 'pastel_pink', name: 'розовый', colorClass: 'bg-[#ff3385]' },
-    { id: 'pastel_milky', name: 'молочный', colorClass: 'bg-[#fffcf5] border-neutral-300' },
+    { id: 'pastel_milky', name: 'молочный', colorClass: 'bg-[#fffcf5]' },
     { id: 'two_tone', name: 'Сине-розовый', colorClass: 'bg-gradient-to-r from-[#00b0ff] to-[#ff00a0]' },
-    { id: 'glow_blue', name: 'голубой светящийся', colorClass: 'bg-[#00d8ff] border-dashed shadow-[0_0_12px_rgba(0,216,255,0.85)] animate-pulse' },
+    { id: 'glow_blue', name: 'голубой светящийся', colorClass: 'bg-[#00d8ff] shadow-[0_0_12px_rgba(0,216,255,0.85)] animate-pulse' },
   ];
 
   const isNight = timeOfDay >= 21.0;
+
+  // ── Page routing ──
+  const { page } = useRouter();
+
+  if (page === 'about') {
+    return <AboutPage />;
+  }
+
+  if (page === 'success') {
+    return <SuccessPage />;
+  }
 
   return (
     <div className="relative w-screen h-screen flex flex-col md:flex-row overflow-hidden bg-[#f6f5f1] text-neutral-800 font-sans select-none antialiased">
@@ -551,6 +709,9 @@ export default function App() {
           inscriptionWeight={inscriptionWeight}
           showFingerZones={showFingerZones}
           onCollisionChange={setCollisionState}
+          onSnapshotReady={(fn) => {
+            captureSnapshotRef.current = fn;
+          }}
           onAddPlacedInsert={(newInserts) => {
             const insertArray = Array.isArray(newInserts) ? newInserts : [newInserts];
             setPlacedInserts((prev) => [...prev, ...insertArray]);
@@ -561,9 +722,10 @@ export default function App() {
           }}
         />
 
-        {/* Brand Header */}
-        <div className="absolute top-5 left-5 pointer-events-none z-10 flex flex-col">
-          <h1 className="text-lg font-bold tracking-tight text-neutral-900 select-none">Nebulae ver 0.1</h1>
+        {/* Brand Header + Main Menu Button */}
+        <div className="absolute top-5 left-5 z-10 flex items-center gap-2">
+          <MainMenu />
+          <h1 className="text-lg font-bold tracking-tight text-neutral-900 select-none pointer-events-none">Nebulae ver 0.1</h1>
         </div>
 
         {/* Real-time Collision Warning Banner */}
@@ -599,17 +761,29 @@ export default function App() {
 
         {/* Top Control Panel: Undo/Redo/Reset, Finger Zones & Sound */}
         <div className={`absolute top-5 right-5 z-10 flex items-center gap-1.5 p-1.5 rounded-xl border backdrop-blur-md shadow-sm transition-all duration-300 ${isNight
+<<<<<<< HEAD
             ? 'bg-neutral-900/90 border-neutral-800 text-white shadow-neutral-950/40'
             : 'bg-white/80 border-neutral-200/40 text-neutral-800'
+=======
+          ? 'bg-neutral-900/90 border-neutral-800 text-white shadow-neutral-950/40'
+          : 'bg-white/80 border-neutral-200/40 text-neutral-800'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
           }`}>
           {/* Finger Zone Toggle Button */}
           <button
             onClick={() => setShowFingerZones(!showFingerZones)}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all border ${showFingerZones
+<<<<<<< HEAD
                 ? collisionState.hasCollision
                   ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
                   : 'bg-amber-50 text-amber-700 border-amber-300'
                 : 'text-neutral-500 hover:bg-neutral-100 border-transparent'
+=======
+              ? collisionState.hasCollision
+                ? 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                : 'bg-amber-50 text-amber-700 border-amber-300'
+              : 'text-neutral-500 hover:bg-neutral-100 border-transparent'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title="Отображение зон 4 мм для соседних пальцев"
           >
@@ -622,8 +796,13 @@ export default function App() {
             onClick={triggerUndo}
             disabled={!canUndo}
             className={`p-2 rounded-lg transition-all ${canUndo
+<<<<<<< HEAD
                 ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
                 : 'text-neutral-500 cursor-not-allowed'
+=======
+              ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
+              : 'text-neutral-500 cursor-not-allowed'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title="Назад (Undo)"
           >
@@ -634,8 +813,13 @@ export default function App() {
             onClick={triggerRedo}
             disabled={!canRedo}
             className={`p-2 rounded-lg transition-all ${canRedo
+<<<<<<< HEAD
                 ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
                 : 'text-neutral-500 cursor-not-allowed'
+=======
+              ? (isNight ? 'text-neutral-200 hover:bg-neutral-800 active:scale-95' : 'text-neutral-700 hover:bg-neutral-100 active:scale-95')
+              : 'text-neutral-500 cursor-not-allowed'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title="Вперед (Redo)"
           >
@@ -670,8 +854,13 @@ export default function App() {
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={`p-2 rounded-lg transition-all active:scale-95 ${soundEnabled
+<<<<<<< HEAD
                 ? (isNight ? 'text-teal-400 hover:bg-neutral-800' : 'text-neutral-700 hover:bg-neutral-100')
                 : 'text-neutral-500 hover:bg-neutral-100'
+=======
+              ? (isNight ? 'text-teal-400 hover:bg-neutral-800' : 'text-neutral-700 hover:bg-neutral-100')
+              : 'text-neutral-500 hover:bg-neutral-100'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             title={soundEnabled ? "Выключить звук" : "Включить звук"}
           >
@@ -684,8 +873,13 @@ export default function App() {
           <button
             onClick={() => setIsCartOpen(true)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95 cursor-pointer ${cartItems.length > 0
+<<<<<<< HEAD
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
                 : (isNight ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200' : 'bg-neutral-900 hover:bg-neutral-800 text-white')
+=======
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+              : (isNight ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200' : 'bg-neutral-900 hover:bg-neutral-800 text-white')
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               }`}
             id="cart-header-button"
             title="Перейти в корзину для заказа"
@@ -793,36 +987,82 @@ export default function App() {
                 setActiveTab('sculpt');
                 setInsertType(null);
               }}
+<<<<<<< HEAD
               className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'sculpt'
                   ? 'bg-white text-neutral-900 shadow-sm'
                   : 'text-neutral-500 hover:text-neutral-800'
+=======
+              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${activeTab === 'sculpt'
+                ? 'bg-white text-neutral-900 shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-800'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                 }`}
             >
-              Лепка
+              <span>Лепка</span>
             </button>
             <button
               onClick={() => {
                 setActiveTab('inserts');
                 setInsertType('circle');
               }}
+<<<<<<< HEAD
               className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'inserts'
                   ? 'bg-white text-neutral-900 shadow-sm'
                   : 'text-neutral-500 hover:text-neutral-800'
+=======
+              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${activeTab === 'inserts'
+                ? 'bg-white text-neutral-900 shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-800'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                 }`}
             >
-              Вставки
+              <span>Вставки</span>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setHelpModal({
+                    title: 'Функция «Вставки»',
+                    gif: gifInsert,
+                    description: 'Позволяет размещать на поверхности кольца готовые 3D-формы или собственные рисунки.'
+                  });
+                }}
+                className="w-4 h-4 rounded-full bg-neutral-200/80 hover:bg-neutral-900 hover:text-white text-neutral-600 flex items-center justify-center text-[10px] font-bold transition-all ml-0.5 cursor-pointer"
+                title="Посмотреть поясняющее видео"
+              >
+                ?
+              </span>
             </button>
             <button
               onClick={() => {
                 setActiveTab('inscription');
                 setInsertType(null);
               }}
+<<<<<<< HEAD
               className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all ${activeTab === 'inscription'
                   ? 'bg-white text-neutral-900 shadow-sm'
                   : 'text-neutral-500 hover:text-neutral-800'
+=======
+              className={`flex-1 py-2 text-[13px] font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${activeTab === 'inscription'
+                ? 'bg-white text-neutral-900 shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-800'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                 }`}
             >
-              Гравировка
+              <span>Гравировка</span>
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setHelpModal({
+                    title: 'Функция «Гравировка»',
+                    gif: gifInscription,
+                    description: 'Создает персонализированную выгравированную надпись на внутренней стороне шинки кольца.'
+                  });
+                }}
+                className="w-4 h-4 rounded-full bg-neutral-200/80 hover:bg-neutral-900 hover:text-white text-neutral-600 flex items-center justify-center text-[10px] font-bold transition-all ml-0.5 cursor-pointer"
+                title="Посмотреть поясняющее видео"
+              >
+                ?
+              </span>
             </button>
           </div>
         </div>
@@ -842,26 +1082,72 @@ export default function App() {
                   setBrushConfig({ ...brushConfig, isSubtract: false });
                   setInsertType(null);
                 }}
+<<<<<<< HEAD
                 className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${!brushConfig.isSubtract
                     ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                     : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
+=======
+                className={`flex items-center justify-center gap-1.5 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${!brushConfig.isSubtract
+                  ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
+                  : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                   }`}
               >
                 <Plus className="w-4 h-4 text-emerald-500" />
-                Добавить
+                <span>Добавить</span>
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setHelpModal({
+                      title: 'Инструмент «Добавить»',
+                      gif: gifAdd,
+                      description: 'Наращивает объем материала на поверхности кольца при движении кисти.'
+                    });
+                  }}
+                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ml-0.5 cursor-pointer ${!brushConfig.isSubtract
+                    ? 'bg-neutral-800 text-neutral-200 hover:bg-white hover:text-neutral-950'
+                    : 'bg-neutral-200 text-neutral-600 hover:bg-neutral-900 hover:text-white'
+                    }`}
+                  title="Посмотреть поясняющее видео"
+                >
+                  ?
+                </span>
               </button>
               <button
                 onClick={() => {
                   setBrushConfig({ ...brushConfig, isSubtract: true });
                   setInsertType(null);
                 }}
+<<<<<<< HEAD
                 className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${brushConfig.isSubtract
                     ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
                     : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
+=======
+                className={`flex items-center justify-center gap-1.5 p-3.5 rounded-xl border font-medium text-[13px] transition-all ${brushConfig.isSubtract
+                  ? 'border-neutral-900 bg-neutral-950 text-white shadow-md'
+                  : 'border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50 text-neutral-700'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                   }`}
               >
                 <Minus className="w-4 h-4 text-rose-500" />
-                Убрать
+                <span>Убрать</span>
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setHelpModal({
+                      title: 'Инструмент «Убрать»',
+                      gif: gifSubtract,
+                      description: 'Вдавливает материал и создает выемки на поверхности кольца.'
+                    });
+                  }}
+                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ml-0.5 cursor-pointer ${brushConfig.isSubtract
+                    ? 'bg-neutral-800 text-neutral-200 hover:bg-white hover:text-neutral-950'
+                    : 'bg-neutral-200 text-neutral-600 hover:bg-neutral-900 hover:text-white'
+                    }`}
+                  title="Посмотреть поясняющее видео"
+                >
+                  ?
+                </span>
               </button>
             </div>
 
@@ -909,9 +1195,26 @@ export default function App() {
         {/* Decorative Inserts Section */}
         {activeTab === 'inserts' && (
           <div className="p-5 border-b border-neutral-100 space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Smile className="w-4 h-4 text-neutral-500" />
-              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-neutral-400">Вставки на кольцо</h2>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Smile className="w-4 h-4 text-neutral-500" />
+                <h2 className="text-[13px] font-semibold uppercase tracking-wider text-neutral-400">Вставки на кольцо</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpModal({
+                    title: 'Функция «Вставки»',
+                    gif: gifInsert,
+                    description: 'Позволяет размещать на поверхности кольца готовые 3D-формы или собственные рисунки.'
+                  });
+                }}
+                className="flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 px-2 py-0.5 rounded-full transition-all cursor-pointer"
+                title="Посмотреть видео-инструкцию"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>Инструкция</span>
+              </button>
             </div>
 
             {/* List of decorative shapes */}
@@ -1029,9 +1332,26 @@ export default function App() {
         {/* Inscription Tab Panel */}
         {activeTab === 'inscription' && (
           <div className="p-5 border-b border-neutral-100 space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="w-4 h-4 flex items-center justify-center font-bold text-[13px] text-neutral-500 select-none">A</span>
-              <h2 className="text-[13px] font-semibold uppercase tracking-wider text-neutral-400">Внутренняя надпись</h2>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-4 h-4 flex items-center justify-center font-bold text-[13px] text-neutral-500 select-none">A</span>
+                <h2 className="text-[13px] font-semibold uppercase tracking-wider text-neutral-400">Внутренняя надпись</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpModal({
+                    title: 'Функция «Гравировка»',
+                    gif: gifInscription,
+                    description: 'Создает персонализированную выгравированную надпись на внутренней стороне шинки кольца.'
+                  });
+                }}
+                className="flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 px-2 py-0.5 rounded-full transition-all cursor-pointer"
+                title="Посмотреть видео-инструкцию"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>Инструкция</span>
+              </button>
             </div>
 
             <div className="space-y-4 bg-neutral-50/50 p-4 rounded-2xl border border-neutral-100/50">
@@ -1222,14 +1542,19 @@ export default function App() {
                     onClick={() => setMaterialPreset(preset.id)}
                     className={`group relative w-8 h-8 rounded-full border-2 transition-all active:scale-90 flex items-center justify-center ${preset.colorClass
                       } ${isSelected
+<<<<<<< HEAD
                         ? 'border-neutral-900 shadow-md scale-105'
                         : 'border-transparent hover:border-neutral-300'
+=======
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/30 shadow-md scale-105'
+                        : 'border-neutral-300 hover:border-neutral-400'
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
                       }`}
                     title={preset.name}
                     id={`material-btn-${preset.id}`}
                   >
                     {isSelected && (
-                      <Check className="w-3.5 h-3.5 text-neutral-900" />
+                      <Check className={`w-3.5 h-3.5 stroke-[2.5] ${preset.id === 'pastel_milky' ? 'text-emerald-600' : 'text-neutral-900'}`} />
                     )}
                     <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-neutral-900 text-white text-[13px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-sm font-sans z-30">
                       {preset.name}
@@ -1281,13 +1606,41 @@ export default function App() {
 
           {/* Add to Cart Primary Button & Cart Drawer */}
           <div className="space-y-2 mt-4">
+            {editingCartItemId && (
+              <div className="flex items-center justify-between bg-amber-50 border border-amber-200/80 text-amber-900 px-3.5 py-2 rounded-xl text-xs shadow-xs">
+                <span className="font-semibold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  Редактирование товара из корзины
+                </span>
+                <button
+                  onClick={() => setEditingCartItemId(null)}
+                  className="text-amber-700 hover:text-amber-950 font-bold underline transition-colors cursor-pointer"
+                >
+                  Отменить
+                </button>
+              </div>
+            )}
+
             <button
               onClick={handleAddToCart}
-              className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 cursor-pointer"
+              className={`w-full py-3.5 px-4 text-white rounded-xl text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-[0.98] ${
+                editingCartItemId
+                  ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+              }`}
               id="add-to-cart-button"
             >
-              <ShoppingBag className="w-4 h-4" />
-              <span>ДОБАВИТЬ В КОРЗИНУ ({new Intl.NumberFormat('ru-RU').format(calculateRingPrice(ringParams, materialPreset, placedInserts.length, inscriptionText))} ₽)</span>
+              {editingCartItemId ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>ПОДТВЕРДИТЬ ИЗМЕНЕНИЯ</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>ДОБАВИТЬ В КОРЗИНУ ({new Intl.NumberFormat('ru-RU').format(calculateRingPrice(ringParams, materialPreset, placedInserts.length, inscriptionText))} ₽)</span>
+                </>
+              )}
             </button>
 
             <div className="flex items-center justify-between px-1 text-xs text-neutral-500">
@@ -1321,6 +1674,7 @@ export default function App() {
         onRemoveItem={handleRemoveCartItem}
         onClearCart={handleClearCart}
         onExportSTL={() => setExportCounter((prev) => prev + 1)}
+        onEditItem={handleEditCartItem}
       />
 
       {/* Toast Notification when item added */}
@@ -1351,6 +1705,64 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+<<<<<<< HEAD
+=======
+      {/* Video Help Modal */}
+      <AnimatePresence>
+        {helpModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setHelpModal(null)}
+            className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-neutral-100 p-6 flex flex-col gap-4"
+            >
+              <button
+                onClick={() => setHelpModal(null)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-600 hover:text-neutral-900 flex items-center justify-center transition-all cursor-pointer z-10"
+                title="Закрыть"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 font-bold flex items-center justify-center text-xs">?</span>
+                  <h3 className="text-lg font-bold text-neutral-900">{helpModal.title}</h3>
+                </div>
+                <p className="text-xs text-neutral-500">{helpModal.description}</p>
+              </div>
+
+              <div className="relative rounded-2xl overflow-hidden bg-neutral-950 border border-neutral-200 flex items-center justify-center shadow-inner min-h-[220px]">
+                <img
+                  src={helpModal.gif}
+                  alt={helpModal.title}
+                  className="w-full h-auto max-h-[60vh] object-contain rounded-xl"
+                />
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  onClick={() => setHelpModal(null)}
+                  className="px-5 py-2 bg-neutral-950 hover:bg-neutral-800 text-white font-medium text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+                >
+                  Понятно
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       {/* Interactive Onboarding Tour */}
       <Onboarding />
     </div>

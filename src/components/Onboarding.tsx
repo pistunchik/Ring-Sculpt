@@ -2,25 +2,50 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { driver, Config } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { motion, AnimatePresence } from 'motion/react';
+<<<<<<< HEAD
 import {
   Sparkles,
   RotateCcw,
+=======
+import { renderToString } from 'react-dom/server';
+import {
+  Sparkles,
+  RotateCcw,
+  Undo2,
+  Redo2,
+  ShieldAlert,
+  Volume2,
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
   Layers,
   PenTool,
   Grid,
   Paintbrush,
   ShoppingBag,
   ChevronRight,
+<<<<<<< HEAD
   HelpCircle
 } from 'lucide-react';
+=======
+  HelpCircle,
+  BookOpen
+} from 'lucide-react';
+import { useRouter } from '../router';
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
 /* ── Welcome Modal ── */
 interface WelcomeModalProps {
   onStart: () => void;
   onSkip: () => void;
+<<<<<<< HEAD
 }
 
 const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStart, onSkip }) => {
+=======
+  onOpenCatalog: () => void;
+}
+
+const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStart, onSkip, onOpenCatalog }) => {
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
   const features = [
     { icon: RotateCcw, label: '3D-лепка', desc: 'Придайте кольцу уникальную форму' },
     { icon: Layers, label: 'Вставки', desc: 'Сердечки, звёзды, свои рисунки' },
@@ -80,8 +105,29 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStart, onSkip }) => {
 
         {/* Feature grid */}
         <div className="px-6 py-5">
+<<<<<<< HEAD
           <p className="text-[14px] font-semibold uppercase tracking-wider text-neutral-400 mb-4 text-center">
             Создайте своё уникальное украшение за пару минут
+=======
+          {/* Catalog shortcut button */}
+          <motion.button
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            onClick={onOpenCatalog}
+            className="w-full mb-3 py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, #0f0f0f, #2d2d2d)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+            }}
+          >
+            <span>Открыть каталог готовых украшений</span>
+            <ChevronRight className="w-4 h-4" />
+          </motion.button>
+
+          <p className="text-[14px] font-semibold uppercase tracking-wider text-neutral-400 mb-4 text-center">
+            Или создайте своё уникальное украшение за пару минут
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
           </p>
 
 
@@ -244,6 +290,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ runOnMount = false }) =>
         {
           element: '.absolute.top-5.right-5',
           popover: {
+<<<<<<< HEAD
             title: 'История действий',
             description:
               '<p>Правый верхний угол холста:</p>' +
@@ -253,6 +300,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({ runOnMount = false }) =>
               '<li><b>⟳</b> Полный сброс модели к начальному состоянию</li>' +
               '<li><b>🛡</b> Включить зоны безопасности для пальцев</li>' +
               '<li><b>🔊</b> Включить/выключить звук лепки</li>' +
+=======
+            title: 'Панель действий',
+            description:
+              '<p>Панель управления в правом верхнем углу холста:</p>' +
+              '<ul style="margin-top:6px;padding-left:16px;line-height:1.8">' +
+              `<li><b>${renderToString(<ShieldAlert style={{ display: 'inline', width: 14, height: 14, verticalAlign: '-2px', marginRight: 4, color: '#d97706' }} />)}</b> Границы (зоны безопасности 4 мм)</li>` +
+              `<li><b>${renderToString(<Undo2 style={{ display: 'inline', width: 14, height: 14, verticalAlign: '-2px', marginRight: 4 }} />)}</b> Отменить действие (Ctrl+Z)</li>` +
+              `<li><b>${renderToString(<Redo2 style={{ display: 'inline', width: 14, height: 14, verticalAlign: '-2px', marginRight: 4 }} />)}</b> Повторить действие (Ctrl+Y / Ctrl+Shift+Z)</li>` +
+              `<li><b>${renderToString(<RotateCcw style={{ display: 'inline', width: 14, height: 14, verticalAlign: '-2px', marginRight: 4, color: '#f43f5e' }} />)}</b> Сбросить модель к начальному состоянию</li>` +
+              `<li><b>${renderToString(<Volume2 style={{ display: 'inline', width: 14, height: 14, verticalAlign: '-2px', marginRight: 4 }} />)}</b> Включить/выключить звук лепки</li>` +
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
               '</ul>',
             side: 'bottom',
             align: 'end',
@@ -304,6 +362,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({ runOnMount = false }) =>
     }
   }, [runOnMount]);
 
+<<<<<<< HEAD
+=======
+  useEffect(() => {
+    const handleCustomOpen = () => {
+      setShowWelcome(true);
+    };
+    window.addEventListener('nebulae_open_onboarding', handleCustomOpen);
+    return () => window.removeEventListener('nebulae_open_onboarding', handleCustomOpen);
+  }, []);
+
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
   const handleStart = () => {
     localStorage.setItem('nebulae_has_seen_onboarding_v2', 'true');
     startTour();
@@ -314,14 +383,23 @@ export const Onboarding: React.FC<OnboardingProps> = ({ runOnMount = false }) =>
     setShowWelcome(false);
   };
 
+<<<<<<< HEAD
   const handleHelpClick = () => {
     setShowWelcome(true);
+=======
+  const { navigate } = useRouter();
+  const handleOpenCatalog = () => {
+    localStorage.setItem('nebulae_has_seen_onboarding_v2', 'true');
+    setShowWelcome(false);
+    navigate('catalog');
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
   };
 
   return (
     <>
       <AnimatePresence>
         {showWelcome && (
+<<<<<<< HEAD
           <WelcomeModal onStart={handleStart} onSkip={handleSkip} />
         )}
       </AnimatePresence>
@@ -342,6 +420,12 @@ export const Onboarding: React.FC<OnboardingProps> = ({ runOnMount = false }) =>
         <HelpCircle className="w-5 h-5 text-white" />
       </motion.button>
 
+=======
+          <WelcomeModal onStart={handleStart} onSkip={handleSkip} onOpenCatalog={handleOpenCatalog} />
+        )}
+      </AnimatePresence>
+
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       {/* Custom driver.js styles */}
       <style>{`
         .nebulae-popover {

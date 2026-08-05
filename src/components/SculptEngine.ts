@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 
 export enum SculptTool {
   Clay = 'Clay',
@@ -63,6 +64,45 @@ export class SculptEngine {
 
   public setRingParams(params: RingParams) {
     this.lastRingParams = params;
+  }
+
+  public loadSTLDataUrl(dataUrl: string, onComplete?: () => void) {
+    try {
+      const base64Str = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      const binary = atob(base64Str);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      const loader = new STLLoader();
+      const loadedGeo = loader.parse(bytes.buffer);
+      loadedGeo.computeVertexNormals();
+      loadedGeo.center();
+
+      loadedGeo.computeBoundingBox();
+      if (loadedGeo.boundingBox) {
+        const size = new THREE.Vector3();
+        loadedGeo.boundingBox.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0) {
+          const scaleFactor = 18.0 / maxDim;
+          loadedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
+        }
+      }
+
+      this.geometry.dispose();
+      this.geometry = loadedGeo;
+      const posAttr = this.geometry.attributes.position;
+      this.vertexCount = posAttr.count;
+      this.originalPositions = new Float32Array(posAttr.array);
+      this.currentPositions = new Float32Array(posAttr.array);
+      this.precomputeStructure();
+
+      if (onComplete) onComplete();
+    } catch (err) {
+      console.error('Error parsing STL data in SculptEngine:', err);
+    }
   }
 
   // Placed decorative inserts

@@ -7,7 +7,7 @@ import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SculptEngine, BrushConfig, RingParams, SculptTool, PlacedInsert } from './SculptEngine';
 import { claySoundManager } from './ClaySoundManager';
-import { Loader2 } from 'lucide-react';
+import { Loader2, HelpCircle } from 'lucide-react';
 
 interface ThreeCanvasProps {
   ringParams: RingParams;
@@ -40,6 +40,10 @@ interface ThreeCanvasProps {
   inscriptionWeight: number;
   showFingerZones?: boolean;
   onCollisionChange?: (collision: { hasCollision: boolean; hasLeft: boolean; hasRight: boolean; maxExceed: number }) => void;
+  /** Called once renderer is ready, with a function to capture a JPEG snapshot of the canvas */
+  onSnapshotReady?: (captureSnapshot: () => string) => void;
+  /** Callback to trigger onboarding tour modal */
+  onOpenOnboarding?: () => void;
 }
 
 // Less matte (glossy, clean resin/porcelain finish) and bright, pure colors
@@ -280,6 +284,45 @@ interface Transform {
   quaternion: THREE.Quaternion;
 }
 
+/**
+ * Returns a smooth, interpolated surface normal at the exact raycast hit point
+ * by weighting the three vertex normals of the hit triangle with barycentric
+ * coordinates. Falls back to the face normal when vertex normals are unavailable.
+ * The result is transformed to world space.
+ */
+const getInterpolatedNormal = (
+  hit: THREE.Intersection,
+  mesh: THREE.Mesh
+): THREE.Vector3 => {
+  const face = hit.face;
+  if (!face) return new THREE.Vector3(0, 0, 1);
+
+  const geo = mesh.geometry;
+  const normAttr = geo.attributes.normal;
+
+  // Fallback to face normal if no vertex normals
+  if (!normAttr || !hit.barycoord) {
+    return face.normal.clone().transformDirection(mesh.matrixWorld).normalize();
+  }
+
+  const { a, b, c } = face;
+  const bc = hit.barycoord; // THREE.Vector3 with barycentric u,v,w
+
+  const nA = new THREE.Vector3().fromBufferAttribute(normAttr, a);
+  const nB = new THREE.Vector3().fromBufferAttribute(normAttr, b);
+  const nC = new THREE.Vector3().fromBufferAttribute(normAttr, c);
+
+  // Interpolate: N = bc.x*nA + bc.y*nB + bc.z*nC
+  const interpolated = new THREE.Vector3()
+    .addScaledVector(nA, bc.x)
+    .addScaledVector(nB, bc.y)
+    .addScaledVector(nC, bc.z)
+    .normalize();
+
+  // Transform to world space (ignores scale)
+  return interpolated.transformDirection(mesh.matrixWorld).normalize();
+};
+
 const rotateVectorZ = (vec: THREE.Vector3, angle: number): THREE.Vector3 => {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -387,6 +430,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   inscriptionWeight = 10,
   showFingerZones = true,
   onCollisionChange,
+  onSnapshotReady,
+  onOpenOnboarding,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -443,6 +488,9 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const ringMesh = ringMeshRef.current;
     if (!group || !engine || !ringMesh) return;
 
+    // Keep placedInserts inside sculptEngine synchronized
+    engine.placedInserts = JSON.parse(JSON.stringify(placedInserts));
+
     // Clear previous
     while (group.children.length > 0) {
       const child = group.children[0] as THREE.Mesh;
@@ -457,10 +505,10 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         const mesh = new THREE.Mesh(geo, ringMesh.material);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        
+
         mesh.position.set(insert.position.x, insert.position.y, insert.position.z);
         mesh.quaternion.set(insert.quaternion.x, insert.quaternion.y, insert.quaternion.z, insert.quaternion.w);
-        
+
         group.add(mesh);
       } catch (err) {
         console.error("Error rendering placed insert:", err);
@@ -890,7 +938,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     controls.maxDistance = 80;
     // Allow full camera rotation, including looking from below
     controls.maxPolarAngle = Math.PI;
-    
+
     // MAPPING INTUITION:
     // Right Click -> Rotate
     // Middle Click -> Dolly/Zoom
@@ -900,7 +948,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE,
     };
-    
+
     // Support two-finger gestures on mobile for rotation/zoom
     controls.touches = {
       ONE: -1 as any, // Sculpting on mobile single touch
@@ -1042,6 +1090,15 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
     setLoading(false);
 
+    // Expose snapshot capture function to parent (for cart preview)
+    if (onSnapshotReady) {
+      onSnapshotReady(() => {
+        // Force a fresh render before capture
+        renderer.render(scene, camera);
+        return renderer.domElement.toDataURL('image/jpeg', 0.75);
+      });
+    }
+
     // 8. Animation & Render Loop
     let animationId: number;
     const raycaster = new THREE.Raycaster();
@@ -1066,23 +1123,48 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       // Dynamic brush alignment or insert preview alignment & raycasting
       if (ringMeshRef.current && cameraRef.current && brushIndicatorRef.current && previewGroupRef.current) {
         raycaster.setFromCamera(mousePosition.current, cameraRef.current);
-        const intersects = raycaster.intersectObject(ringMeshRef.current);
 
         const activeInsertType = insertTypeRef.current;
         const previewGroup = previewGroupRef.current;
 
-        if (intersects.length > 0) {
-          const hit = intersects[0];
-          
+        // In insert mode: test against the ring AND existing insert meshes so the
+        // preview normal is correct when hovering over a placed insert.
+        let previewHitPoint: THREE.Vector3 | null = null;
+        let previewHitNormal: THREE.Vector3 | null = null;
+
+        if (activeInsertType && insertsGroupRef.current) {
+          const insertCandidates: THREE.Object3D[] = [ringMeshRef.current, ...insertsGroupRef.current.children];
+          const insertIntersects = raycaster.intersectObjects(insertCandidates, false);
+          if (insertIntersects.length > 0) {
+            const firstHit = insertIntersects[0];
+            previewHitPoint = firstHit.point.clone();
+            if (insertsGroupRef.current.children.includes(firstHit.object)) {
+              // Hit an existing insert — use the actual face normal at the hit point
+              // (top face → +Z direction; side face → perpendicular to extrusion)
+              previewHitNormal = getInterpolatedNormal(firstHit, firstHit.object as THREE.Mesh);
+            } else {
+              // Hit the ring — use smooth interpolated vertex normal
+              previewHitNormal = getInterpolatedNormal(firstHit, ringMeshRef.current);
+            }
+          }
+        } else {
+          const intersects = raycaster.intersectObject(ringMeshRef.current);
+          if (intersects.length > 0) {
+            previewHitPoint = intersects[0].point.clone();
+            previewHitNormal = getInterpolatedNormal(intersects[0], ringMeshRef.current);
+          }
+        }
+
+        if (previewHitPoint !== null && previewHitNormal !== null) {
+          const hit = { point: previewHitPoint, face: { normal: previewHitNormal } };
+
           if (activeInsertType) {
             brushIndicatorRef.current.visible = false;
             previewGroup.visible = true;
 
-            const normal = hit.face!.normal.clone().transformDirection(ringMeshRef.current.matrixWorld);
-
             const transforms = computeSymmetricalTransforms(
               hit.point,
-              normal,
+              hit.face.normal,
               symmetryEnabledRef.current,
               symmetryPlaneRef.current,
               symmetryRadialCountRef.current,
@@ -1143,12 +1225,12 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
           } else {
             previewGroup.visible = false;
             brushIndicatorRef.current.visible = true;
-            
-            const offsetPos = hit.point.clone().addScaledVector(hit.face!.normal, 0.05);
+
+            const offsetPos = hit.point.clone().addScaledVector(hit.face.normal, 0.05);
             brushIndicatorRef.current.position.copy(offsetPos);
-            
+
             const up = new THREE.Vector3(0, 0, 1);
-            const q = new THREE.Quaternion().setFromUnitVectors(up, hit.face!.normal);
+            const q = new THREE.Quaternion().setFromUnitVectors(up, hit.face.normal);
             brushIndicatorRef.current.setRotationFromQuaternion(q);
 
             const activeRadius = brushConfigRef.current.radius;
@@ -1286,6 +1368,49 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     return intersects.length > 0 ? intersects[0] : null;
   };
 
+  /**
+   * In insert-placement mode, test the ray against both the ring and placed
+   * inserts, and return { point, worldNormal } for the closest hit.
+   * If the hit is on an insert, the worldNormal is taken as that insert's
+   * upward direction (local +Z rotated into world space), so a new insert
+   * placed there will be perpendicular to the existing insert's top face.
+   */
+  const performInsertRaycast = (clientX: number, clientY: number): { point: THREE.Vector3; normal: THREE.Vector3 } | null => {
+    if (!rendererRef.current || !cameraRef.current || !ringMeshRef.current) return null;
+
+    const rect = rendererRef.current.domElement.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), cameraRef.current);
+
+    // Collect candidates: ring mesh and all insert meshes
+    const candidates: THREE.Object3D[] = [ringMeshRef.current];
+    if (insertsGroupRef.current) {
+      insertsGroupRef.current.children.forEach((child) => candidates.push(child));
+    }
+
+    const intersects = raycaster.intersectObjects(candidates, false);
+    if (intersects.length === 0) return null;
+
+    const hit = intersects[0];
+    const hitObj = hit.object;
+
+    // Check if we hit an insert mesh (a direct child of insertsGroup)
+    const insertsGroup = insertsGroupRef.current;
+    if (insertsGroup && insertsGroup.children.includes(hitObj)) {
+      // Use the actual face normal at the hit point on the insert mesh
+      // (top face → insert's extrusion direction; side face → perpendicular to it)
+      return { point: hit.point.clone(), normal: getInterpolatedNormal(hit, hitObj as THREE.Mesh) };
+    }
+
+    // Hit the ring — use smooth interpolated vertex normal
+    if (!hit.face) return null;
+    const ringNormal = getInterpolatedNormal(hit, ringMeshRef.current);
+    return { point: hit.point.clone(), normal: ringNormal };
+  };
+
   // MOUSE & TOUCH EVENT EVENT HANDLERS
   const handleMouseDown = (e: React.MouseEvent) => {
     // Left click only sculpts/places
@@ -1296,13 +1421,13 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       const activeInsertType = insertTypeRef.current;
       if (activeInsertType) {
         // We are in insert mode! Add insert(s) symmetrically and do not sculpt!
-        const ringMesh = ringMeshRef.current;
-        if (!ringMesh) return;
+        // Use insert-aware raycast so clicking on an existing insert uses its top normal
+        const insertHit = performInsertRaycast(e.clientX, e.clientY);
+        if (!insertHit) return;
 
-        const normal = hit.face!.normal.clone().transformDirection(ringMesh.matrixWorld);
         const transforms = computeSymmetricalTransforms(
-          hit.point,
-          normal,
+          insertHit.point,
+          insertHit.normal,
           symmetryEnabledRef.current,
           symmetryPlaneRef.current,
           symmetryRadialCountRef.current,
@@ -1370,7 +1495,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     if (isSculptingActive.current) {
       isSculptingActive.current = false;
       lastIntersectPoint.current = null;
-      
+
       // Stop the synthesizer
       claySoundManager.stop();
 
@@ -1395,13 +1520,13 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     if (hit) {
       const activeInsertType = insertTypeRef.current;
       if (activeInsertType) {
-        const ringMesh = ringMeshRef.current;
-        if (!ringMesh) return;
+        // Use insert-aware raycast for correct normal when clicking on existing inserts
+        const insertHit = performInsertRaycast(touch.clientX, touch.clientY);
+        if (!insertHit) return;
 
-        const normal = hit.face!.normal.clone().transformDirection(ringMesh.matrixWorld);
         const transforms = computeSymmetricalTransforms(
-          hit.point,
-          normal,
+          insertHit.point,
+          insertHit.normal,
           symmetryEnabledRef.current,
           symmetryPlaneRef.current,
           symmetryRadialCountRef.current,
@@ -1523,8 +1648,30 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       <canvas ref={canvasRef} className="w-full h-full block" id="sculptring-canvas" />
 
       {/* Floating Camera Help Overlay */}
-      <div className="absolute bottom-4 left-4 font-sans text-[13px] tracking-wide text-neutral-400 bg-white/85 px-2.5 py-1.5 rounded-full shadow-xs border border-neutral-100/40 select-none pointer-events-none backdrop-blur-xs max-w-xs leading-relaxed hidden md:block">
-        🖱️ <strong className="text-neutral-600">Левый клик:</strong> лепка • <strong className="text-neutral-600">Правый клик:</strong> вращение • <strong className="text-neutral-600">Колесо:</strong> зум • <strong className="text-neutral-600">Дабл-клик:</strong> сброс камеры
+      <div className="absolute bottom-4 left-4 font-sans text-[12px] tracking-wide text-neutral-500 bg-white/90 px-3 py-2 rounded-2xl shadow-md border border-neutral-200/60 select-none backdrop-blur-md hidden md:flex items-center gap-3.5 z-10">
+        <div className="leading-snug text-neutral-600 font-medium">
+          <div><strong className="text-neutral-900">ЛКМ:</strong> лепка</div>
+          <div><strong className="text-neutral-900">ПКМ:</strong> вращение</div>
+          <div><strong className="text-neutral-900">Колесо:</strong> зум</div>
+          <div><strong className="text-neutral-900">Дабл-клик:</strong> сброс камеры</div>
+        </div>
+
+        <div className="border-l border-neutral-200/80 pl-3 flex items-center">
+          <button
+            onClick={() => {
+              if (onOpenOnboarding) {
+                onOpenOnboarding();
+              } else {
+                window.dispatchEvent(new CustomEvent('nebulae_open_onboarding'));
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 active:scale-95 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer pointer-events-auto"
+            title="Пройти обучение заново"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+            <span>Обучение</span>
+          </button>
+        </div>
       </div>
     </div>
   );

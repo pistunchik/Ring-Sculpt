@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+<<<<<<< HEAD
+=======
+import nodemailer from 'nodemailer';
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
 dotenv.config();
 
@@ -25,10 +29,24 @@ app.use((req, res, next) => {
 });
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
+<<<<<<< HEAD
 const TELEGRAM_CHAT_ID   = process.env.TELEGRAM_CHAT_ID   || process.env.VITE_TELEGRAM_CHAT_ID;
 const YUKASSA_SHOP_ID    = process.env.YUKASSA_SHOP_ID;
 const YUKASSA_SECRET_KEY = process.env.YUKASSA_SECRET_KEY;
 
+=======
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || process.env.VITE_TELEGRAM_CHAT_ID;
+const YUKASSA_SHOP_ID = process.env.YUKASSA_SHOP_ID;
+const YUKASSA_SECRET_KEY = process.env.YUKASSA_SECRET_KEY;
+
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465';
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_FROM = process.env.SMTP_FROM || 'Nebulae Support <support@nebulae.ru>';
+
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 // In-memory store: paymentId → { orderNumber, orderDetails, items, stlBuffers }
 // (persists until server restart; для продакшна — замените на Redis/DB)
 const pendingOrders = new Map();
@@ -38,9 +56,15 @@ const pendingOrders = new Map();
 ───────────────────────────────────────────────────────────── */
 function buildOrderNum() {
   const now = new Date();
+<<<<<<< HEAD
   const dd  = String(now.getDate()).padStart(2, '0');
   const mo  = String(now.getMonth() + 1).padStart(2, '0');
   const yy  = String(now.getFullYear()).slice(-2);
+=======
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = String(now.getFullYear()).slice(-2);
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
   const key = `nebulae_order_seq_${dd}${mo}${yy}`;
   // простой счётчик в памяти — при рестарте сервера начинается заново
   if (!buildOrderNum._counters) buildOrderNum._counters = {};
@@ -105,6 +129,183 @@ async function sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBu
   }
 }
 
+<<<<<<< HEAD
+=======
+function createEmailTransporter() {
+  if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+    return nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+    });
+  }
+  return null;
+}
+
+async function sendOrderEmail(orderNumber, orderDetails, parsedItems) {
+  const userEmail = orderDetails?.email?.trim();
+  if (!userEmail || !userEmail.includes('@')) {
+    console.log(`[INFO] Email для заказа №${orderNumber} не отправлен: не указан адрес электронной почты.`);
+    return;
+  }
+
+  const transporter = createEmailTransporter();
+  const totalAmount = parsedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const itemsHtml = parsedItems
+    .map(
+      (item, i) => `
+    <tr style="border-bottom: 1px solid #eeeeee;">
+      <td style="padding: 12px; vertical-align: top;">
+        <strong style="color: #111111; font-size: 14px;">${i + 1}. ${item.name}</strong><br/>
+        <span style="color: #666666; font-size: 12px;">Материал: ${item.materialName}</span><br/>
+        <span style="color: #666666; font-size: 12px;">Размер: ${item.ringParams?.innerDiameter || '—'} мм | Ширина: ${item.ringParams?.width || '—'} мм | Толщина: ${item.ringParams?.thickness || '—'} мм</span>
+        ${item.inscriptionText ? `<br/><span style="color: #b45309; font-size: 12px;">Гравировка: «${item.inscriptionText}»</span>` : ''}
+        ${item.placedInsertsCount > 0 ? `<br/><span style="color: #666666; font-size: 12px;">Вставки: ${item.placedInsertsCount} шт.</span>` : ''}
+      </td>
+      <td style="padding: 12px; text-align: center; vertical-align: top; font-size: 13px; color: #333333;">
+        ${item.quantity} шт.
+      </td>
+      <td style="padding: 12px; text-align: right; vertical-align: top; font-size: 14px; font-weight: bold; color: #111111;">
+        ${(item.price * item.quantity).toLocaleString('ru-RU')} ₽
+      </td>
+    </tr>
+  `
+    )
+    .join('');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+      <meta charset="UTF-8">
+      <title>Заказ №${orderNumber} принят | Nebulae</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #18181b;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 10px;">
+        <tr>
+          <td align="center">
+            <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 1px solid #e4e4e7;">
+              
+              <!-- Header -->
+              <tr>
+                <td style="background-color: #09090b; padding: 32px 40px; text-align: center;">
+                  <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;">NEBULAE</h1>
+                  <p style="margin: 6px 0 0 0; color: #a1a1aa; font-size: 12px; letter-spacing: 1px;">ЮВЕЛИРНАЯ СТУДИЯ</p>
+                </td>
+              </tr>
+
+              <!-- Content -->
+              <tr>
+                <td style="padding: 40px;">
+                  <h2 style="margin: 0 0 12px 0; font-size: 20px; font-weight: 700; color: #09090b;">Ваш заказ принят!</h2>
+                  <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #52525b;">
+                    Здравствуйте, <strong>${orderDetails.customerName}</strong>!<br/>
+                    Благодарим вас за заказ в ювелирной студии Nebulae. Мы получили параметры вашего украшения и приступили к работе над моделью.
+                  </p>
+
+                  <!-- Order Info Box -->
+                  <div style="background-color: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 28px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 13px;">
+                      <tr>
+                        <td style="padding-bottom: 8px; color: #64748b;">Номер заказа:</td>
+                        <td style="padding-bottom: 8px; text-align: right; font-weight: bold; color: #0f172a; font-family: monospace; font-size: 14px;">№${orderNumber}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 8px; color: #64748b;">Покупатель:</td>
+                        <td style="padding-bottom: 8px; text-align: right; font-weight: bold; color: #0f172a;">${orderDetails.customerName}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom: 8px; color: #64748b;">Телефон:</td>
+                        <td style="padding-bottom: 8px; text-align: right; font-weight: bold; color: #0f172a;">${orderDetails.phone}</td>
+                      </tr>
+                      ${orderDetails.address ? `
+                      <tr>
+                        <td style="padding-bottom: 8px; color: #64748b;">Адрес / Пункт выдачи:</td>
+                        <td style="padding-bottom: 8px; text-align: right; font-weight: bold; color: #0f172a;">${orderDetails.address}</td>
+                      </tr>
+                      ` : ''}
+                      ${orderDetails.comment ? `
+                      <tr>
+                        <td style="padding-bottom: 8px; color: #64748b;">Комментарий:</td>
+                        <td style="padding-bottom: 8px; text-align: right; color: #0f172a;">${orderDetails.comment}</td>
+                      </tr>
+                      ` : ''}
+                    </table>
+                  </div>
+
+                  <!-- Items Table -->
+                  <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700; color: #09090b;">Состав заказа:</h3>
+                  <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 24px;">
+                    <thead>
+                      <tr style="background-color: #f4f4f5; border-bottom: 1px solid #e4e4e7;">
+                        <th align="left" style="padding: 10px 12px; font-size: 12px; color: #71717a; font-weight: 600;">Наименование</th>
+                        <th align="center" style="padding: 10px 12px; font-size: 12px; color: #71717a; font-weight: 600;">Кол-во</th>
+                        <th align="right" style="padding: 10px 12px; font-size: 12px; color: #71717a; font-weight: 600;">Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${itemsHtml}
+                    </tbody>
+                  </table>
+
+                  <!-- Total -->
+                  <div style="text-align: right; border-top: 2px solid #18181b; padding-top: 16px; margin-bottom: 28px;">
+                    <span style="font-size: 14px; color: #52525b;">Итого к оплате:</span>
+                    <span style="font-size: 20px; font-weight: 800; color: #09090b; margin-left: 12px;">${totalAmount.toLocaleString('ru-RU')} ₽</span>
+                  </div>
+
+                  <!-- Delivery info -->
+                  <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; font-size: 13px; color: #166534; line-height: 1.5; margin-bottom: 28px;">
+                    <strong>Информация об изготовлении:</strong><br/>
+                    Срок изготовления изделия составляет 5–7 рабочих дней. Мы свяжемся с вами по номеру <strong>${orderDetails.phone}</strong> при необходимости.
+                  </div>
+
+                  <p style="margin: 0; font-size: 13px; color: #71717a; line-height: 1.5;">
+                    По всем вопросам обращайтесь по адресу <a href="mailto:support@nebulae.ru" style="color: #09090b; font-weight: bold; text-decoration: underline;">support@nebulae.ru</a>.
+                  </p>
+                </td>
+              </tr>
+
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #f4f4f5; padding: 24px 40px; text-align: center; border-top: 1px solid #e4e4e7; font-size: 12px; color: #a1a1aa;">
+                  © ${new Date().getFullYear()} Nebulae Jewelry Studio. Все права защищены.<br/>
+                  Отправлено от имени support@nebulae.ru
+                </td>
+              </tr>
+
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  if (!transporter) {
+    console.warn(`[WARN] SMTP не настроен в .env. Сообщение от support@nebulae.ru для ${userEmail} по заказу №${orderNumber} сформировано (задайте SMTP_* в .env для отправки).`);
+    return;
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: SMTP_FROM,
+      to: userEmail,
+      subject: `Ваш заказ №${orderNumber} принят | Nebulae`,
+      html: htmlContent,
+    });
+    console.log(`[EMAIL] Письмо о заказе №${orderNumber} отправлено от support@nebulae.ru на ${userEmail} (MessageID: ${info.messageId})`);
+  } catch (err) {
+    console.error(`[ERROR] Ошибка отправки письма от support@nebulae.ru на ${userEmail}:`, err);
+  }
+}
+
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 /* ─────────────────────────────────────────────────────────────
    POST /api/create-payment
    Принимает FormData с данными заказа + STL-файлы.
@@ -114,7 +315,11 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
   try {
     // Если ЮКасса не настроена — отправляем заказ напрямую в Telegram (режим разработки)
     if (!YUKASSA_SHOP_ID || !YUKASSA_SECRET_KEY ||
+<<<<<<< HEAD
         YUKASSA_SHOP_ID === 'ВАШ_SHOP_ID' || YUKASSA_SECRET_KEY === 'ВАШ_SECRET_KEY') {
+=======
+      YUKASSA_SHOP_ID === 'ВАШ_SHOP_ID' || YUKASSA_SECRET_KEY === 'ВАШ_SECRET_KEY') {
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       console.warn('[WARN] ЮКасса не настроена — отправляем заказ напрямую в Telegram.');
       const { customerName, phone, email, address, comment, items } = req.body;
       const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
@@ -129,6 +334,14 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
         parsedItems,
         stlBuffers
       );
+<<<<<<< HEAD
+=======
+      await sendOrderEmail(
+        orderNumber,
+        { customerName, phone, email, address, comment, deliveryMethod: 'yandex_market' },
+        parsedItems
+      );
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
       return res.json({
         success: true,
         orderNumber,
@@ -247,7 +460,12 @@ app.post('/api/payment-webhook', async (req, res) => {
       pendingOrders.delete(paymentId);
 
       await sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBuffers);
+<<<<<<< HEAD
       console.log(`[WEBHOOK] Заказ №${orderNumber} успешно отправлен в Telegram.`);
+=======
+      await sendOrderEmail(orderNumber, orderDetails, parsedItems);
+      console.log(`[WEBHOOK] Заказ №${orderNumber} успешно отправлен в Telegram и на Email.`);
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
     }
 
     res.sendStatus(200);
@@ -276,6 +494,14 @@ app.post('/api/checkout', upload.array('stlFiles'), async (req, res) => {
       parsedItems,
       stlBuffers
     );
+<<<<<<< HEAD
+=======
+    await sendOrderEmail(
+      orderNumber,
+      { customerName, phone, email, deliveryMethod, address, comment },
+      parsedItems
+    );
+>>>>>>> e6e7c89 (Add catalog, onboarding, routing and cart updates)
 
     res.status(200).json({ success: true });
   } catch (err) {
