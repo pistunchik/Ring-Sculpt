@@ -1,0 +1,26 @@
+{
+  "name": "Nebulae — 3D Jewelry Sculptor",
+  "short_name": "Nebulae",
+  "description": "3D-конструктор и сервис создания уникальных ювелирных украшений",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0e17",
+  "theme_color": "#0c0e17",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
