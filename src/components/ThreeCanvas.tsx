@@ -5,12 +5,15 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { SculptEngine, BrushConfig, RingParams, SculptTool, PlacedInsert } from './SculptEngine';
 import { claySoundManager } from './ClaySoundManager';
+import { createRingMaterial } from '../utils/materialUtils';
 import { Loader2, HelpCircle } from 'lucide-react';
 
 interface ThreeCanvasProps {
   ringParams: RingParams;
+  stlUrl?: string;
   brushConfig: BrushConfig;
   onEngineReady: (engine: SculptEngine | null) => void;
   soundEnabled: boolean;
@@ -46,57 +49,31 @@ interface ThreeCanvasProps {
   onOpenOnboarding?: () => void;
 }
 
-// Less matte (glossy, clean resin/porcelain finish) and bright, pure colors
+// Bambu Lab PLA Matte presets + special materials
 const materialPresets: Record<string, any> = {
-  pastel_blue: {
-    color: 0x00d2ff, // Bright, pure electric sky blue
-    roughness: 0.16,
-    metalness: 0.03,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.08,
-    transmission: 0.2,
-    thickness: 1.2,
-    label: "голубой"
-  },
-  pastel_yellow: {
-    color: 0xffe600, // Vibrant, pure, rich sunshine yellow
-    roughness: 0.15,
-    metalness: 0.03,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.08,
-    transmission: 0.2,
-    thickness: 1.2,
-    label: "желтый"
-  },
-  pastel_light_green: {
-    color: 0x00e676, // Bright, clean, fresh emerald mint green
-    roughness: 0.16,
-    metalness: 0.03,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.08,
-    transmission: 0.2,
-    thickness: 1.2,
-    label: "зеленый"
-  },
-  pastel_pink: {
-    color: 0xff3385, // Vibrant, pure candy blossom pink
-    roughness: 0.16,
-    metalness: 0.03,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.08,
-    transmission: 0.2,
-    thickness: 1.2,
-    label: "розовый"
-  },
-  pastel_milky: {
-    color: 0xfffcf5, // Clean, luminous glossy white porcelain
-    roughness: 0.14,
+  ice_blue: {
+    color: 0x7ecbf2,
+    roughness: 0.38,
     metalness: 0.02,
-    clearcoat: 0.8,
-    clearcoatRoughness: 0.05,
-    transmission: 0.35,
-    thickness: 1.8,
-    label: "молочный"
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.25,
+    label: "Ice Blue"
+  },
+  sakura_pink: {
+    color: 0xf88cb0,
+    roughness: 0.38,
+    metalness: 0.02,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.25,
+    label: "Sakura Pink"
+  },
+  mandarin_orange: {
+    color: 0xff8f1c,
+    roughness: 0.38,
+    metalness: 0.02,
+    clearcoat: 0.2,
+    clearcoatRoughness: 0.25,
+    label: "Mandarin Orange"
   },
   two_tone: {
     color: 0xffffff,
@@ -107,9 +84,9 @@ const materialPresets: Record<string, any> = {
     label: "Сине-розовый"
   },
   glow_blue: {
-    color: 0x00c4ff, // Clean cyan blue base
-    emissive: 0x0088dd, // Soft glow blue
-    emissiveIntensity: 0.75, // Reduced glow intensity for a calmer, less bright aesthetic
+    color: 0x00c4ff,
+    emissive: 0x0088dd,
+    emissiveIntensity: 0.75,
     roughness: 0.12,
     metalness: 0.05,
     label: "голубой светящийся"
@@ -117,96 +94,25 @@ const materialPresets: Record<string, any> = {
 };
 
 const createMaterial = (presetName: string): THREE.Material => {
-  const params = materialPresets[presetName] || materialPresets.pastel_blue;
-
-  if (presetName === 'glow_blue') {
-    return new THREE.MeshPhysicalMaterial({
-      color: params.color,
-      emissive: new THREE.Color(params.emissive),
-      emissiveIntensity: params.emissiveIntensity,
-      roughness: params.roughness,
-      metalness: params.metalness,
-      shadowSide: THREE.DoubleSide,
-    });
-  }
-
-  if (presetName === 'two_tone') {
-    const mat = new THREE.MeshPhysicalMaterial({
-      roughness: 0.15,
-      metalness: 0.45,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.05,
-      shadowSide: THREE.DoubleSide,
-    });
-    mat.onBeforeCompile = (shader) => {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        `#include <common>
-         varying vec3 vLocalPos;
-         varying vec3 vLocalNormal;`
-      ).replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-         vLocalPos = position;
-         vLocalNormal = normal;`
-      );
-
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        `#include <common>
-         varying vec3 vLocalPos;
-         varying vec3 vLocalNormal;`
-      ).replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
-         vec3 N = vec3(0.0, 0.0, 1.0);
-         if (length(vLocalNormal) > 0.001) {
-           N = normalize(vLocalNormal);
-         }
-         // Custom split direction representing the co-extrusion plane.
-         // A tilted axis ensures all curvatures of the ring (X, Y, Z axes) display the rich color shift.
-         vec3 splitDir = normalize(vec3(1.0, 0.35, 0.2));
-         float dotVal = dot(N, splitDir);
-         float mixRatio = smoothstep(-0.55, 0.55, dotVal);
-         
-         // Premium silk co-extruded filament colors (deep vibrant royal cyan-blue and lush neon magenta-pink)
-         vec3 blueColor = vec3(0.05, 0.52, 1.0);
-         vec3 pinkColor = vec3(1.0, 0.18, 0.72);
-         
-         diffuseColor.rgb = mix(blueColor, pinkColor, mixRatio);`
-      );
-    };
-    return mat;
-  }
-
-  return new THREE.MeshPhysicalMaterial({
-    color: params.color,
-    roughness: params.roughness,
-    metalness: params.metalness,
-    transmission: params.transmission || 0,
-    thickness: params.thickness || 0,
-    clearcoat: params.clearcoat || 0,
-    clearcoatRoughness: params.clearcoatRoughness || 0,
-    shadowSide: THREE.DoubleSide,
-  });
+  return createRingMaterial(presetName);
 };
 
 // Generates warm, cozy, atmospheric lights and background based on the timeOfDay (12:00 -> 24:00)
 const getLightState = (t: number) => {
   const time = Math.max(12, Math.min(24, t));
 
-  // Noon (12:00) - Bright, clean cozy daylight, high soft warm sun
+  // Noon (12:00) - Bright, clean cozy studio daylight, matching the catalog aesthetic
   const noon = {
-    bgColor: new THREE.Color(0xfbfaf6),
+    bgColor: new THREE.Color(0xfcfbf9),
     ambientColor: new THREE.Color(0xfff9f2),
-    ambientIntensity: 0.65,
-    dir1Color: new THREE.Color(0xffebd2),
-    dir1Intensity: 1.6,
-    dir1Pos: new THREE.Vector3(25, -20, 30),
-    dir2Color: new THREE.Color(0xd9efff),
-    dir2Intensity: 0.45,
-    floorColor: new THREE.Color(0xffebd2),
-    floorIntensity: 0.25,
+    ambientIntensity: 1.2,
+    dir1Color: new THREE.Color(0xffeed8),
+    dir1Intensity: 2.0,
+    dir1Pos: new THREE.Vector3(18, 28, 22),
+    dir2Color: new THREE.Color(0xddeeff),
+    dir2Intensity: 0.9,
+    floorColor: new THREE.Color(0xffffff),
+    floorIntensity: 0.7,
   };
 
   // Sunset/Evening (18:00) - Golden warm window-cast light, rosy warm environment
@@ -216,7 +122,7 @@ const getLightState = (t: number) => {
     ambientIntensity: 0.55,
     dir1Color: new THREE.Color(0xff8a27), // Deep golden orange sunset
     dir1Intensity: 1.9,
-    dir1Pos: new THREE.Vector3(35, -15, 18), // Slanted low angle for long shadows
+    dir1Pos: new THREE.Vector3(20, -15, 30),
     dir2Color: new THREE.Color(0xbd9bf5), // Lavender soft fill
     dir2Intensity: 0.35,
     floorColor: new THREE.Color(0xfa8850),
@@ -230,7 +136,7 @@ const getLightState = (t: number) => {
     ambientIntensity: 0.18,
     dir1Color: new THREE.Color(0x404beb), // Magical cool moonlight
     dir1Intensity: 0.35,
-    dir1Pos: new THREE.Vector3(20, -10, 25),
+    dir1Pos: new THREE.Vector3(15, -25, 30),
     dir2Color: new THREE.Color(0x00a8ff), // Electric neon cyan/blue glow
     dir2Intensity: 0.55,
     floorColor: new THREE.Color(0x000000),
@@ -323,18 +229,18 @@ const getInterpolatedNormal = (
   return interpolated.transformDirection(mesh.matrixWorld).normalize();
 };
 
-const rotateVectorZ = (vec: THREE.Vector3, angle: number): THREE.Vector3 => {
+const rotateVectorY = (vec: THREE.Vector3, angle: number): THREE.Vector3 => {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   return new THREE.Vector3(
-    vec.x * cos - vec.y * sin,
-    vec.x * sin + vec.y * cos,
-    vec.z
+    vec.x * cos - vec.z * sin,
+    vec.y,
+    vec.x * sin + vec.z * cos
   );
 };
 
-const mirrorVectorZ = (vec: THREE.Vector3): THREE.Vector3 => {
-  return new THREE.Vector3(vec.x, vec.y, -vec.z);
+const mirrorVectorY = (vec: THREE.Vector3): THREE.Vector3 => {
+  return new THREE.Vector3(vec.x, -vec.y, vec.z);
 };
 
 const mirrorVectorX = (vec: THREE.Vector3): THREE.Vector3 => {
@@ -373,14 +279,14 @@ export const computeSymmetricalTransforms = (
   for (let k = 0; k < radialCount; k++) {
     const angle = (k * 2 * Math.PI) / radialCount;
 
-    const ptRot = rotateVectorZ(hitPoint, angle);
-    const normRot = rotateVectorZ(hitNormal, angle);
+    const ptRot = rotateVectorY(hitPoint, angle);
+    const normRot = rotateVectorY(hitNormal, angle);
     addUniqueTransform(ptRot, normRot);
 
     if (symmetryPlane) {
-      const ptMirZ = mirrorVectorZ(ptRot);
-      const normMirZ = mirrorVectorZ(normRot);
-      addUniqueTransform(ptMirZ, normMirZ);
+      const ptMirY = mirrorVectorY(ptRot);
+      const normMirY = mirrorVectorY(normRot);
+      addUniqueTransform(ptMirY, normMirY);
     }
 
     if (symmetryPlanePerp) {
@@ -390,9 +296,9 @@ export const computeSymmetricalTransforms = (
     }
 
     if (symmetryPlane && symmetryPlanePerp) {
-      const ptMirXZ = mirrorVectorZ(mirrorVectorX(ptRot));
-      const normMirXZ = mirrorVectorZ(mirrorVectorX(normRot));
-      addUniqueTransform(ptMirXZ, normMirXZ);
+      const ptMirXY = mirrorVectorY(mirrorVectorX(ptRot));
+      const normMirXY = mirrorVectorY(mirrorVectorX(normRot));
+      addUniqueTransform(ptMirXY, normMirXY);
     }
   }
 
@@ -401,6 +307,7 @@ export const computeSymmetricalTransforms = (
 
 export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   ringParams,
+  stlUrl,
   brushConfig,
   onEngineReady,
   soundEnabled,
@@ -659,25 +566,25 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         for (let i = 0; i < count; i++) {
           v.set(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
 
-          // Cylindrical projection
-          const theta = Math.atan2(v.y, v.x);
-          const dxy = Math.sqrt(v.x * v.x + v.y * v.y);
-          const z = v.z;
+          // Cylindrical projection in XZ plane
+          const theta = Math.atan2(v.z, v.x);
+          const dxz = Math.sqrt(v.x * v.x + v.z * v.z);
+          const y = v.y;
 
           // Compute distance relative to old inner radius (representing local sculpt height)
-          const localThickness = dxy - oldInnerRadius;
+          const localThickness = dxz - oldInnerRadius;
           // Scale radial sculpt thickness proportionally
           const thicknessRatio = oldThickness > 0 ? (localThickness / oldThickness) : 1;
-          const newDxy = newInnerRadius + thicknessRatio * newThickness;
+          const newDxz = newInnerRadius + thicknessRatio * newThickness;
 
-          // Scale height (width) along Z
-          const widthRatio = oldWidth > 0 ? (z / oldWidth) : 1;
-          const newZ = widthRatio * newWidth;
+          // Scale height (width) along Y
+          const widthRatio = oldWidth > 0 ? (y / oldWidth) : 1;
+          const newY = widthRatio * newWidth;
 
           // Map back to Cartesian coordinates
-          v.x = Math.cos(theta) * newDxy;
-          v.y = Math.sin(theta) * newDxy;
-          v.z = newZ;
+          v.x = Math.cos(theta) * newDxz;
+          v.z = Math.sin(theta) * newDxz;
+          v.y = newY;
 
           // Save back
           positions[i * 3] = v.x;
@@ -777,35 +684,69 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     }
   }, [inscriptionText, inscriptionDepth, inscriptionSize, inscriptionWeight, triggerReset]);
 
-  // Handle Undo Trigger
+  // Handle Undo Trigger (guarded against firing on mount)
+  const prevUndoRef = useRef(undoCounter);
   useEffect(() => {
-    if (undoCounter > 0 && sculptEngineRef.current) {
+    if (undoCounter > prevUndoRef.current && sculptEngineRef.current) {
       sculptEngineRef.current.undo();
     }
+    prevUndoRef.current = undoCounter;
   }, [undoCounter]);
 
-  // Handle Redo Trigger
+  // Handle Redo Trigger (guarded against firing on mount)
+  const prevRedoRef = useRef(redoCounter);
   useEffect(() => {
-    if (redoCounter > 0 && sculptEngineRef.current) {
+    if (redoCounter > prevRedoRef.current && sculptEngineRef.current) {
       sculptEngineRef.current.redo();
     }
+    prevRedoRef.current = redoCounter;
   }, [redoCounter]);
 
-  // Handle Export Trigger
+  // Handle Export Trigger (guarded against firing on mount)
+  const prevExportRef = useRef(exportCounter);
   useEffect(() => {
-    if (exportCounter > 0 && sculptEngineRef.current) {
+    if (exportCounter > prevExportRef.current && sculptEngineRef.current) {
       sculptEngineRef.current.exportSTL();
     }
+    prevExportRef.current = exportCounter;
   }, [exportCounter]);
 
-  // Handle Global Smoothing Trigger
+  // Handle Global Smoothing Trigger (guarded against firing on mount)
+  const prevSmoothRef = useRef(smoothAllCounter);
   useEffect(() => {
-    if (smoothAllCounter > 0 && sculptEngineRef.current && ringParamsRef.current) {
+    if (smoothAllCounter > prevSmoothRef.current && sculptEngineRef.current && ringParamsRef.current) {
       sculptEngineRef.current.smoothAll(ringParamsRef.current, 3, autoSmoothStrengthRef.current);
     }
+    prevSmoothRef.current = smoothAllCounter;
   }, [smoothAllCounter]);
 
-  // Procedural Ring Geometry Generator
+  // Handle dynamic stlUrl updates
+  const currentStlUrlRef = useRef<string | undefined>(stlUrl);
+  useEffect(() => {
+    if (!stlUrl || stlUrl === currentStlUrlRef.current) return;
+    currentStlUrlRef.current = stlUrl;
+    const engine = sculptEngineRef.current;
+    if (!engine) return;
+
+    const loader = new STLLoader();
+    loader.load(
+      stlUrl,
+      (loadedGeo) => {
+        engine.loadGeometry(loadedGeo, ringParamsRef.current.innerDiameter + ringParamsRef.current.thickness * 2);
+        if (ringMeshRef.current) {
+          ringMeshRef.current.geometry = loadedGeo;
+          ringMeshRef.current.geometry.computeVertexNormals();
+          ringMeshRef.current.geometry.attributes.position.needsUpdate = true;
+        }
+      },
+      undefined,
+      (err) => {
+        console.warn('Could not load STL in ThreeCanvas:', err);
+      }
+    );
+  }, [stlUrl]);
+
+  // Procedural Ring Geometry Generator (XZ Plane)
   const createRingGeometry = (params: RingParams) => {
     const radialSegments = 120;
     const tubularSegments = 360;
@@ -814,16 +755,17 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     const r = params.thickness / 2;
     const R = innerRadius + r;
 
-    // Base Torus
+    // Base Torus rotated to stand in the XZ plane
     const geometry = new THREE.TorusGeometry(R, r, radialSegments, tubularSegments);
+    geometry.rotateX(Math.PI / 2);
 
-    // Continuous stretching along the Z axis to fit the ring width
+    // Continuous stretching along the Y axis to fit the ring width
     const posAttr = geometry.attributes.position;
-    const scaleZ = params.width / params.thickness;
+    const scaleY = params.width / params.thickness;
 
     for (let i = 0; i < posAttr.count; i++) {
-      const z = posAttr.getZ(i);
-      posAttr.setZ(i, z * scaleZ);
+      const y = posAttr.getY(i);
+      posAttr.setY(i, y * scaleY);
     }
 
     geometry.computeVertexNormals();
@@ -844,21 +786,18 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
   // Main Mounting & Initialisation Loop
   useEffect(() => {
-    if (!containerRef.current || !canvasRef.current) return;
-
-    // 1. Initialize Scene & Renderer
+     // 1. Initialize Scene & Renderer
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xfbf9f5); // Warm, cozy off-white/beige studio background
+    scene.background = new THREE.Color(0xfcfbf9);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
-      40,
+      36,
       containerRef.current.clientWidth / containerRef.current.clientHeight,
       0.1,
-      1000
+      500
     );
-    // Beautiful, relaxed initial angle looking slightly from top-right
-    camera.position.set(0, -32, 22);
+    camera.position.set(0, 16, 36);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({
@@ -866,67 +805,52 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       antialias: true,
       alpha: false,
       powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
     });
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2 for mobile performance
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap; // Beautiful, ultra-soft contact shadows
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     rendererRef.current = renderer;
 
-    // 1b. Initialize Postprocessing Composer & Ambient Occlusion (SSAO)
-    const width = containerRef.current.clientWidth;
-    const height = containerRef.current.clientHeight;
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
-
-    const ssaoPass = new SSAOPass(scene, camera, width, height);
-    ssaoPass.kernelRadius = 2.0;
-    ssaoPass.minDistance = 0.001;
-    ssaoPass.maxDistance = 0.1;
-    composer.addPass(ssaoPass);
-
-    const outputPass = new OutputPass();
-    composer.addPass(outputPass);
-
-    composerRef.current = composer;
-    ssaoPassRef.current = ssaoPass;
-
-    // 2. Add Ambient Contact Ground Plane
-    const groundGeo = new THREE.PlaneGeometry(300, 300);
+    // 2. Add Ambient Contact Ground Plane (Underneath ring at Y = -13)
+    const groundGeo = new THREE.PlaneGeometry(120, 120);
     const groundMat = new THREE.ShadowMaterial({ opacity: 0.12 });
     const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.position.z = -35; // Pushed further back behind the model
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -13;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // 3. Add Studio Lights Setup (Cozy warm sunlight streaming from a window)
-    const ambientLight = new THREE.AmbientLight(0xfff8f0, 0.55); // Soft, warm cozy ambient base fill
+    // 3. Add Studio Lights Setup (Clean, bright, crystal-clear studio setup)
+    const ambientLight = new THREE.AmbientLight(0xfff9f2, 1.2);
     scene.add(ambientLight);
     ambientLightRef.current = ambientLight;
 
-    const dirLight1 = new THREE.DirectionalLight(0xffebca, 1.7); // Warm golden sunlight from a window
-    dirLight1.position.set(25, -20, 30); // Higher, slanted window angle for cozy long shadows
+    const dirLight1 = new THREE.DirectionalLight(0xffeed8, 2.0);
+    dirLight1.position.set(18, 28, 22);
     dirLight1.castShadow = true;
     dirLight1.shadow.mapSize.width = 1024;
     dirLight1.shadow.mapSize.height = 1024;
     dirLight1.shadow.camera.near = 0.5;
-    dirLight1.shadow.camera.far = 200;
-    dirLight1.shadow.camera.left = -30;
-    dirLight1.shadow.camera.right = 30;
-    dirLight1.shadow.camera.top = 30;
-    dirLight1.shadow.camera.bottom = -30;
+    dirLight1.shadow.camera.far = 160;
+    dirLight1.shadow.camera.left = -35;
+    dirLight1.shadow.camera.right = 35;
+    dirLight1.shadow.camera.top = 35;
+    dirLight1.shadow.camera.bottom = -35;
     dirLight1.shadow.bias = -0.0005;
     scene.add(dirLight1);
     dirLight1Ref.current = dirLight1;
 
-    const dirLight2 = new THREE.DirectionalLight(0xd9f0ff, 0.40); // Cool soft sky-blue fill from opposite side of the window
-    dirLight2.position.set(-25, 25, 15);
+    const dirLight2 = new THREE.DirectionalLight(0xddeeff, 0.9);
+    dirLight2.position.set(-20, -10, -20);
     scene.add(dirLight2);
     dirLight2Ref.current = dirLight2;
 
-    const floorLight = new THREE.DirectionalLight(0xffeed6, 0.20); // Warm reflected floor bounce light
-    floorLight.position.set(0, 0, -20);
+    const floorLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    floorLight.position.set(0, 8, 25);
     scene.add(floorLight);
     floorLightRef.current = floorLight;
 
@@ -995,8 +919,35 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     // 6. Initialize Sculpting Engine
     const engine = new SculptEngine(ringGeo);
     engine.setRingParams(ringParamsRef.current);
+    engine.onGeometryReplaced = (newGeo: THREE.BufferGeometry) => {
+      if (ringMeshRef.current) {
+        ringMeshRef.current.geometry = newGeo;
+        ringMeshRef.current.geometry.computeVertexNormals();
+        ringMeshRef.current.geometry.attributes.position.needsUpdate = true;
+      }
+    };
     sculptEngineRef.current = engine;
     onEngineReady(engine);
+
+    // If stlUrl is provided at mount time, load it into engine and mesh
+    if (stlUrl) {
+      const loader = new STLLoader();
+      loader.load(
+        stlUrl,
+        (loadedGeo) => {
+          engine.loadGeometry(loadedGeo, ringParamsRef.current.innerDiameter + ringParamsRef.current.thickness * 2);
+          if (ringMeshRef.current) {
+            ringMeshRef.current.geometry = loadedGeo;
+            ringMeshRef.current.geometry.computeVertexNormals();
+            ringMeshRef.current.geometry.attributes.position.needsUpdate = true;
+          }
+        },
+        undefined,
+        (err) => {
+          console.warn('Could not load initial STL in ThreeCanvas mount:', err);
+        }
+      );
+    }
 
     // 7. Add Visual Brush Outline Ring
     const brushOutlineGeo = new THREE.RingGeometry(1, 1.05, 32);
@@ -1017,7 +968,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     scene.add(fingerZonesGroup);
 
     // Compact bounded box geometry that does not cut into background planes
-    const zoneBoxGeo = new THREE.BoxGeometry(6, 22, 18);
+    const zoneBoxGeo = new THREE.BoxGeometry(6, 18, 22);
 
     const leftZoneMat = new THREE.MeshBasicMaterial({
       color: 0xef4444,
@@ -1296,10 +1247,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
         }
       }
 
-      // Render Scene with Ambient Occlusion (Composer) or direct renderer fallback
-      if (composerRef.current) {
-        composerRef.current.render();
-      } else if (rendererRef.current && sceneRef.current && cameraRef.current) {
+      // Render Scene directly with clean studio lighting & ACES tone mapping
+      if (rendererRef.current && sceneRef.current && cameraRef.current) {
         rendererRef.current.render(sceneRef.current, cameraRef.current);
       }
     };
@@ -1461,6 +1410,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
       // Undo / Redo history saving
       if (sculptEngineRef.current) {
+        sculptEngineRef.current.beginStroke(); // Reset stroke-level modified index accumulator
         sculptEngineRef.current.saveState();
       }
 
@@ -1499,7 +1449,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       // Stop the synthesizer
       claySoundManager.stop();
 
-      // Trigger organic clay-relaxing/melting animation
+      // Trigger local relaxation — smooths only vertices touched in this stroke
       if (sculptEngineRef.current && ringParamsRef.current) {
         sculptEngineRef.current.triggerRelaxation(ringParamsRef.current);
       }
@@ -1557,6 +1507,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       lastIntersectPoint.current = hit.point.clone();
 
       if (sculptEngineRef.current) {
+        sculptEngineRef.current.beginStroke(); // Reset stroke-level modified index accumulator
         sculptEngineRef.current.saveState();
       }
 

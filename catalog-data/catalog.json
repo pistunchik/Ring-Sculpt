@@ -1,0 +1,119 @@
+[
+  {
+    "id": "cat_1787272511509_gshhl",
+    "name": "Волна",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 750,
+    "badge": "Бета -50%",
+    "defaultParams": {
+      "innerDiameter": 18,
+      "width": 4.5,
+      "thickness": 2.2
+    },
+    "defaultMaterial": "pastel_milky",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787272511509_gshhl____________stl.stl",
+    "isActive": true,
+    "createdAt": "2026-08-21T00:35:11.512Z"
+  },
+  {
+    "id": "cat_1787272255418_l1prl",
+    "name": "Кости Кости Кости Кости",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 750,
+    "badge": "Бета -50%",
+    "defaultParams": {
+      "innerDiameter": 18,
+      "width": 4.5,
+      "thickness": 2.2
+    },
+    "defaultMaterial": "pastel_milky",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787272255418_l1prl____________stl.stl",
+    "isActive": true,
+    "createdAt": "2026-08-21T00:30:55.427Z"
+  },
+  {
+    "id": "cat_1787271981160_vzo4q",
+    "name": "Колючка",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 750,
+    "badge": "Бета -50%",
+    "defaultParams": {
+      "innerDiameter": 18,
+      "width": 5.5,
+      "thickness": 2.2
+    },
+    "defaultMaterial": "pastel_milky",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787271981160_vzo4q________________18_stl.stl",
+    "isActive": true,
+    "createdAt": "2026-08-21T00:26:21.165Z"
+  },
+  {
+    "id": "cat_1787166447457_wtkum",
+    "name": "Сатурн",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 750,
+    "badge": "Бета -50%",
+    "defaultParams": {
+      "innerDiameter": 17.5,
+      "width": 6,
+      "thickness": 2.5
+    },
+    "defaultMaterial": "pastel_milky",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787166447457_wtkum_3_stl.stl",
+    "isActive": true,
+    "createdAt": "2026-08-19T19:07:27.458Z",
+    "updatedAt": "2026-08-21T00:35:45.529Z"
+  },
+  {
+    "id": "cat_1787166434028_2ti96",
+    "name": "Туда-сюда",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 750,
+    "badge": "Бета -50%",
+    "defaultParams": {
+      "innerDiameter": 16.5,
+      "width": 6,
+      "thickness": 2.5
+    },
+    "defaultMaterial": "pastel_milky",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787166434028_2ti96_2_stl.stl",
+    "isActive": true,
+    "createdAt": "2026-08-19T19:07:14.033Z",
+    "updatedAt": "2026-08-21T00:35:51.151Z"
+  },
+  {
+    "id": "cat_1787166426276_k1u9o",
+    "name": "И такое бывает",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 750,
+    "badge": "Бета -50%",
+    "defaultParams": {
+      "innerDiameter": 17.5,
+      "width": 6,
+      "thickness": 2.5
+    },
+    "defaultMaterial": "pastel_milky",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787166426276_k1u9o_model.stl",
+    "isActive": true,
+    "createdAt": "2026-08-19T19:07:06.286Z",
+    "updatedAt": "2026-08-21T00:35:58.213Z"
+  }
+]

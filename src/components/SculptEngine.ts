@@ -43,7 +43,7 @@ export interface RingParams {
 }
 
 export class SculptEngine {
-  private geometry: THREE.BufferGeometry;
+  public geometry: THREE.BufferGeometry;
   
   // Sculpting state
   public originalPositions: Float32Array;
@@ -61,9 +61,113 @@ export class SculptEngine {
   private cachedInscriptionWeight: number = 10;
   public lastRingParams: RingParams | null = null;
   private displacedPositions: Float32Array | null = null;
+  public onGeometryReplaced?: (newGeo: THREE.BufferGeometry) => void;
 
   public setRingParams(params: RingParams) {
-    this.lastRingParams = params;
+    this.lastRingParams = { ...params };
+  }
+
+  /**
+   * Morph geometry to new ring parameters without scaling outer thickness or width.
+   */
+  public morphToParams(newParams: RingParams) {
+    if (!this.lastRingParams) {
+      this.lastRingParams = { ...newParams };
+      return;
+    }
+    const oldParams = this.lastRingParams;
+    if (
+      oldParams.innerDiameter === newParams.innerDiameter &&
+      oldParams.width === newParams.width &&
+      oldParams.thickness === newParams.thickness
+    ) {
+      return;
+    }
+
+    const oldInnerRadius = oldParams.innerDiameter / 2;
+    const newInnerRadius = newParams.innerDiameter / 2;
+    const oldThickness = oldParams.thickness;
+    const newThickness = newParams.thickness;
+    const oldWidth = oldParams.width;
+    const newWidth = newParams.width;
+
+    const positions = this.currentPositions;
+    const origPositions = this.originalPositions;
+    const count = this.vertexCount;
+
+    for (let i = 0; i < count; i++) {
+      const px = positions[i * 3];
+      const py = positions[i * 3 + 1];
+      const pz = positions[i * 3 + 2];
+
+      const theta = Math.atan2(pz, px);
+      const dxz = Math.sqrt(px * px + pz * pz);
+
+      const localThickness = dxz - oldInnerRadius;
+      const thicknessRatio = oldThickness > 0 ? (localThickness / oldThickness) : 1;
+      const newDxz = newInnerRadius + thicknessRatio * newThickness;
+
+      const widthRatio = oldWidth > 0 ? (py / oldWidth) : 1;
+      const newY = widthRatio * newWidth;
+
+      positions[i * 3] = Math.cos(theta) * newDxz;
+      positions[i * 3 + 1] = newY;
+      positions[i * 3 + 2] = Math.sin(theta) * newDxz;
+
+      if (origPositions) {
+        const opx = origPositions[i * 3];
+        const opy = origPositions[i * 3 + 1];
+        const opz = origPositions[i * 3 + 2];
+        const otheta = Math.atan2(opz, opx);
+        const odxz = Math.sqrt(opx * opx + opz * opz);
+        const oLocalThickness = odxz - oldInnerRadius;
+        const oThicknessRatio = oldThickness > 0 ? (oLocalThickness / oldThickness) : 1;
+        const oNewDxz = newInnerRadius + oThicknessRatio * newThickness;
+        const oWidthRatio = oldWidth > 0 ? (opy / oldWidth) : 1;
+        const oNewY = oWidthRatio * newWidth;
+        origPositions[i * 3] = Math.cos(otheta) * oNewDxz;
+        origPositions[i * 3 + 1] = oNewY;
+        origPositions[i * 3 + 2] = Math.sin(otheta) * oNewDxz;
+      }
+    }
+
+    this.lastRingParams = { ...newParams };
+    this.updateGeometryBuffer();
+  }
+
+  public loadGeometry(loadedGeo: THREE.BufferGeometry, targetDiameter?: number) {
+    try {
+      loadedGeo.computeVertexNormals();
+      loadedGeo.center();
+
+      loadedGeo.computeBoundingBox();
+      if (loadedGeo.boundingBox) {
+        const size = new THREE.Vector3();
+        loadedGeo.boundingBox.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0) {
+          const d = targetDiameter || (this.lastRingParams ? this.lastRingParams.innerDiameter + this.lastRingParams.thickness * 2 : 22.5);
+          const scaleFactor = d / maxDim;
+          loadedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
+        }
+      }
+
+      if (this.geometry && this.geometry !== loadedGeo) {
+        this.geometry.dispose();
+      }
+      this.geometry = loadedGeo;
+      const posAttr = this.geometry.attributes.position;
+      this.vertexCount = posAttr.count;
+      this.originalPositions = new Float32Array(posAttr.array);
+      this.currentPositions = new Float32Array(posAttr.array);
+      this.precomputeStructure();
+
+      if (this.onGeometryReplaced) {
+        this.onGeometryReplaced(loadedGeo);
+      }
+    } catch (err) {
+      console.error('Error loading geometry into SculptEngine:', err);
+    }
   }
 
   public loadSTLDataUrl(dataUrl: string, onComplete?: () => void) {
@@ -77,27 +181,7 @@ export class SculptEngine {
       }
       const loader = new STLLoader();
       const loadedGeo = loader.parse(bytes.buffer);
-      loadedGeo.computeVertexNormals();
-      loadedGeo.center();
-
-      loadedGeo.computeBoundingBox();
-      if (loadedGeo.boundingBox) {
-        const size = new THREE.Vector3();
-        loadedGeo.boundingBox.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z);
-        if (maxDim > 0) {
-          const scaleFactor = 18.0 / maxDim;
-          loadedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
-        }
-      }
-
-      this.geometry.dispose();
-      this.geometry = loadedGeo;
-      const posAttr = this.geometry.attributes.position;
-      this.vertexCount = posAttr.count;
-      this.originalPositions = new Float32Array(posAttr.array);
-      this.currentPositions = new Float32Array(posAttr.array);
-      this.precomputeStructure();
+      this.loadGeometry(loadedGeo);
 
       if (onComplete) onComplete();
     } catch (err) {
@@ -111,6 +195,7 @@ export class SculptEngine {
   // Geometry structural maps
   private weldMap: number[][] = [];       // Maps each vertex index to all indices that share the same coordinates
   private adjacencyList: number[][] = [];  // Vertex adjacency list for Laplacian smoothing
+  private strokeModifiedIndices = new Set<number>(); // All vertices touched in the current stroke
 
   // Undo/Redo stacks (each stores a HistoryState)
   private undoStack: HistoryState[] = [];
@@ -123,6 +208,7 @@ export class SculptEngine {
   private relaxationDuration: number = 400; // ms
   private relaxationPositionsStart: Float32Array | null = null;
   private relaxationPositionsTarget: Float32Array | null = null;
+  private relaxationModifiedIndices: Set<number> = new Set();
 
   constructor(geometry: THREE.BufferGeometry) {
     this.geometry = geometry;
@@ -211,6 +297,14 @@ export class SculptEngine {
         }
       }
     }
+  }
+
+  /**
+   * Resets the per-stroke modified index accumulator.
+   * Must be called at the start of every new sculpt stroke (mouseDown / touchStart).
+   */
+  public beginStroke() {
+    this.strokeModifiedIndices.clear();
   }
 
   /**
@@ -358,17 +452,35 @@ export class SculptEngine {
       for (let k = 0; k < radialCount; k++) {
         const angle = (k * 2 * Math.PI) / radialCount;
 
-        const ptRot = rotateZ(origPt, angle);
-        const normRot = rotateZ(origNorm, angle);
-        const dragRot = rotateZ(origDrag, angle);
+        const rotateY = (vec: THREE.Vector3, ang: number): THREE.Vector3 => {
+          const cos = Math.cos(ang);
+          const sin = Math.sin(ang);
+          return new THREE.Vector3(
+            vec.x * cos - vec.z * sin,
+            vec.y,
+            vec.x * sin + vec.z * cos
+          );
+        };
+
+        const mirrorY = (vec: THREE.Vector3): THREE.Vector3 => {
+          return new THREE.Vector3(vec.x, -vec.y, vec.z);
+        };
+
+        const mirrorX = (vec: THREE.Vector3): THREE.Vector3 => {
+          return new THREE.Vector3(-vec.x, vec.y, vec.z);
+        };
+
+        const ptRot = rotateY(origPt, angle);
+        const normRot = rotateY(origNorm, angle);
+        const dragRot = rotateY(origDrag, angle);
 
         addUniqueBrush(ptRot, normRot, dragRot);
 
         if (symmetryPlane) {
-          const ptMirZ = mirrorZ(ptRot);
-          const normMirZ = mirrorZ(normRot);
-          const dragMirZ = mirrorZ(dragRot);
-          addUniqueBrush(ptMirZ, normMirZ, dragMirZ);
+          const ptMirY = mirrorY(ptRot);
+          const normMirY = mirrorY(normRot);
+          const dragMirY = mirrorY(dragRot);
+          addUniqueBrush(ptMirY, normMirY, dragMirY);
         }
 
         if (symmetryPlanePerp) {
@@ -379,10 +491,10 @@ export class SculptEngine {
         }
 
         if (symmetryPlane && symmetryPlanePerp) {
-          const ptMirXZ = mirrorZ(mirrorX(ptRot));
-          const normMirXZ = mirrorZ(mirrorX(normRot));
-          const dragMirXZ = mirrorZ(mirrorX(dragRot));
-          addUniqueBrush(ptMirXZ, normMirXZ, dragMirXZ);
+          const ptMirXY = mirrorY(mirrorX(ptRot));
+          const normMirXY = mirrorY(mirrorX(normRot));
+          const dragMirXY = mirrorY(mirrorX(dragRot));
+          addUniqueBrush(ptMirXY, normMirXY, dragMirXY);
         }
       }
     }
@@ -406,13 +518,13 @@ export class SculptEngine {
           const weight = Math.cos(ratio * Math.PI / 2);
           const wEffect = weight * weight * intensity * 0.15;
 
-          // Compute local radial vector (pointing directly outwards from the Z-axis center)
-          radialNormal.set(vPos.x, vPos.y, 0).normalize();
+          // Compute local radial vector (pointing directly outwards from the Y-axis center)
+          radialNormal.set(vPos.x, 0, vPos.z).normalize();
 
           // 1. Calculate safe mask (prevents inner ring deformation)
-          const currentDxy = Math.sqrt(vPos.x * vPos.x + vPos.y * vPos.y);
+          const currentDxz = Math.sqrt(vPos.x * vPos.x + vPos.z * vPos.z);
           // Lock vertices that are very close to inner radius
-          const safetyMask = THREE.MathUtils.clamp((currentDxy - (innerRadius + 0.2)) / 0.8, 0, 1);
+          const safetyMask = THREE.MathUtils.clamp((currentDxz - (innerRadius + 0.2)) / 0.8, 0, 1);
           const effectiveWeight = wEffect * safetyMask;
 
           if (effectiveWeight <= 0) continue;
@@ -467,9 +579,9 @@ export class SculptEngine {
               break;
             }
             case SculptTool.Noise: {
-              const noiseScaleX = Math.sin(vPos.x * 2.5 + vPos.y * 3.0) * 0.15;
-              const noiseScaleY = Math.cos(vPos.y * 2.5 - vPos.z * 3.0) * 0.15;
-              const noiseScaleZ = Math.sin(vPos.z * 4.0) * 0.15;
+              const noiseScaleX = Math.sin(vPos.x * 2.5 + vPos.z * 3.0) * 0.15;
+              const noiseScaleZ = Math.cos(vPos.z * 2.5 - vPos.y * 3.0) * 0.15;
+              const noiseScaleY = Math.sin(vPos.y * 4.0) * 0.15;
               const totalNoise = (noiseScaleX + noiseScaleY + noiseScaleZ);
               vPos.addScaledVector(radialNormal, totalNoise * effectiveWeight * 2.0);
               break;
@@ -485,16 +597,16 @@ export class SculptEngine {
       if (vertexModified) {
         // Apply thickness checks instantly during deform to prevent holes
         const origX = this.originalPositions[i * 3];
-        const origY = this.originalPositions[i * 3 + 1];
-        const origDxy = Math.sqrt(origX * origX + origY * origY);
-        const t = THREE.MathUtils.clamp((origDxy - innerRadius) / ringParams.thickness, 0, 1);
-        const minDxyConstraint = innerRadius + t * minThickness;
+        const origZ = this.originalPositions[i * 3 + 2];
+        const origDxz = Math.sqrt(origX * origX + origZ * origZ);
+        const t = THREE.MathUtils.clamp((origDxz - innerRadius) / ringParams.thickness, 0, 1);
+        const minDxzConstraint = innerRadius + t * minThickness;
 
-        const newDxy = Math.sqrt(vPos.x * vPos.x + vPos.y * vPos.y);
-        if (newDxy < minDxyConstraint) {
-          const scale = minDxyConstraint / newDxy;
+        const newDxz = Math.sqrt(vPos.x * vPos.x + vPos.z * vPos.z);
+        if (newDxz < minDxzConstraint) {
+          const scale = minDxzConstraint / newDxz;
           vPos.x *= scale;
-          vPos.y *= scale;
+          vPos.z *= scale;
         }
 
         // Store back
@@ -503,6 +615,7 @@ export class SculptEngine {
         positions[i * 3 + 2] = vPos.z;
 
         modifiedIndices.push(i);
+        this.strokeModifiedIndices.add(i);
       }
     }
 
@@ -528,8 +641,8 @@ export class SculptEngine {
           const avgY = sumY / neighbors.length;
           const avgZ = sumZ / neighbors.length;
 
-          const currentDxy = Math.sqrt(tempPositions[idx * 3] * tempPositions[idx * 3] + tempPositions[idx * 3 + 1] * tempPositions[idx * 3 + 1]);
-          const safetyMask = THREE.MathUtils.clamp((currentDxy - (innerRadius + 0.2)) / 0.8, 0, 1);
+          const currentDxz = Math.sqrt(tempPositions[idx * 3] * tempPositions[idx * 3] + tempPositions[idx * 3 + 2] * tempPositions[idx * 3 + 2]);
+          const safetyMask = THREE.MathUtils.clamp((currentDxz - (innerRadius + 0.2)) / 0.8, 0, 1);
           
           // Moderate, stable blend factor proportional to user's setting
           const lerpFactor = 0.22 * smoothStrength * safetyMask;
@@ -540,16 +653,16 @@ export class SculptEngine {
 
           // Enforce minimum thickness
           const origX = this.originalPositions[idx * 3];
-          const origY = this.originalPositions[idx * 3 + 1];
-          const origDxy = Math.sqrt(origX * origX + origY * origY);
-          const t = THREE.MathUtils.clamp((origDxy - innerRadius) / ringParams.thickness, 0, 1);
-          const minDxyConstraint = innerRadius + t * minThickness;
+          const origZ = this.originalPositions[idx * 3 + 2];
+          const origDxz = Math.sqrt(origX * origX + origZ * origZ);
+          const t = THREE.MathUtils.clamp((origDxz - innerRadius) / ringParams.thickness, 0, 1);
+          const minDxzConstraint = innerRadius + t * minThickness;
 
-          const dxy = Math.sqrt(nextX * nextX + nextY * nextY);
-          if (dxy < minDxyConstraint) {
-            const scale = minDxyConstraint / dxy;
+          const dxz = Math.sqrt(nextX * nextX + nextZ * nextZ);
+          if (dxz < minDxzConstraint) {
+            const scale = minDxzConstraint / dxz;
             nextX *= scale;
-            nextY *= scale;
+            nextZ *= scale;
           }
 
           positions[idx * 3] = nextX;
@@ -592,8 +705,8 @@ export class SculptEngine {
         const avgY = sumY / neighbors.length;
         const avgZ = sumZ / neighbors.length;
 
-        const currentDxy = Math.sqrt(tempPositions[i * 3] * tempPositions[i * 3] + tempPositions[i * 3 + 1] * tempPositions[i * 3 + 1]);
-        const safetyMask = THREE.MathUtils.clamp((currentDxy - (innerRadius + 0.2)) / 0.8, 0, 1);
+        const currentDxz = Math.sqrt(tempPositions[i * 3] * tempPositions[i * 3] + tempPositions[i * 3 + 2] * tempPositions[i * 3 + 2]);
+        const safetyMask = THREE.MathUtils.clamp((currentDxz - (innerRadius + 0.2)) / 0.8, 0, 1);
         const lerpFactor = strength * safetyMask;
 
         let nextX = THREE.MathUtils.lerp(tempPositions[i * 3], avgX, lerpFactor);
@@ -602,16 +715,16 @@ export class SculptEngine {
 
         // Enforce min thickness
         const origX = this.originalPositions[i * 3];
-        const origY = this.originalPositions[i * 3 + 1];
-        const origDxy = Math.sqrt(origX * origX + origY * origY);
-        const t = THREE.MathUtils.clamp((origDxy - innerRadius) / ringParams.thickness, 0, 1);
-        const minDxyConstraint = innerRadius + t * minThickness;
+        const origZ = this.originalPositions[i * 3 + 2];
+        const origDxz = Math.sqrt(origX * origX + origZ * origZ);
+        const t = THREE.MathUtils.clamp((origDxz - innerRadius) / ringParams.thickness, 0, 1);
+        const minDxzConstraint = innerRadius + t * minThickness;
 
-        const dxy = Math.sqrt(nextX * nextX + nextY * nextY);
-        if (dxy < minDxyConstraint) {
-          const scale = minDxyConstraint / dxy;
+        const dxz = Math.sqrt(nextX * nextX + nextZ * nextZ);
+        if (dxz < minDxzConstraint) {
+          const scale = minDxzConstraint / dxz;
           nextX *= scale;
-          nextY *= scale;
+          nextZ *= scale;
         }
 
         positions[i * 3] = nextX;
@@ -771,8 +884,10 @@ export class SculptEngine {
     const width = 1024;
     const height = 128;
     
-    const x = Math.min(width - 1, Math.max(0, Math.floor(u * width)));
-    const y = Math.min(height - 1, Math.max(0, Math.floor(v * height)));
+    const uClamped = (u % 1 + 1) % 1;
+    const x = Math.min(width - 1, Math.max(0, Math.floor(uClamped * width)));
+    // Invert V so top of ring (v=1) corresponds to top of font (y=0 in canvas)
+    const y = Math.min(height - 1, Math.max(0, Math.floor((1 - v) * height)));
     
     return this.inscriptionPixels[y * width + x];
   }
@@ -795,25 +910,26 @@ export class SculptEngine {
       const y = positions[i * 3 + 1];
       const z = positions[i * 3 + 2];
 
-      const dxy = Math.sqrt(x * x + y * y);
-      const theta = Math.atan2(y, x); // Angle around Z axis [-pi, pi]
+      const dxz = Math.sqrt(x * x + z * z);
+      const theta = Math.atan2(z, x); // Angle around Y axis [-pi, pi]
 
-      const dx = dxy - R;
+      const dx = dxz - R;
 
       // Only apply to the inside face of the ring (dx < 0)
       if (dx < 0) {
-        // Map theta to u: we map the full circumference so text wraps cleanly on the inside.
-        const u = (theta + Math.PI) / (2 * Math.PI);
+        // Map theta to u: (theta + 3*PI/2)/(2*PI) centers text at theta = -PI/2 (facing the camera)
+        // and reads in forward left-to-right direction across the inner wall
+        const u = (theta + (3 * Math.PI) / 2) / (2 * Math.PI);
 
-        // Map z (height) to v:
-        const v = (z + width / 2) / width;
+        // Map y (height/width) to v:
+        const v = (y + width / 2) / width;
 
         if (v >= 0.05 && v <= 0.95) {
           // Beautiful wide vertical fade using a sine wave, avoiding jagged edges near boundaries
           const verticalWeight = Math.sin((v - 0.05) / 0.9 * Math.PI);
           
-          // Radial weight is maximum on the innermost wall (dxy = innerRadius) and fades to the tube center (dxy = R)
-          const radialWeight = Math.max(0, (R - dxy) / r);
+          // Radial weight is maximum on the innermost wall (dxz = innerRadius) and fades to the tube center (dxz = R)
+          const radialWeight = Math.max(0, (R - dxz) / r);
           
           // Let the inside weight be extremely prominent
           const insideWeight = radialWeight * verticalWeight;
@@ -827,10 +943,10 @@ export class SculptEngine {
 
               // Direction vector pointing outwards from the center of the ring
               const dirX = Math.cos(theta);
-              const dirY = Math.sin(theta);
+              const dirZ = Math.sin(theta);
 
               positions[i * 3] += dirX * displaceAmount;
-              positions[i * 3 + 1] += dirY * displaceAmount;
+              positions[i * 3 + 2] += dirZ * displaceAmount;
             }
           }
         }
@@ -844,53 +960,61 @@ export class SculptEngine {
    */
   public triggerRelaxation(ringParams: RingParams) {
     if (this.isRelaxing) return;
+    if (this.strokeModifiedIndices.size === 0) return;
 
-    // Build the relaxed target state
-    const relaxedPositions = new Float32Array(this.currentPositions);
-    const count = this.vertexCount;
+    // Collect all stroke-touched vertices plus their weld-twins for seam safety
+    const indicesToSmooth = new Set<number>();
+    for (const idx of this.strokeModifiedIndices) {
+      indicesToSmooth.add(idx);
+      const twins = this.weldMap[idx];
+      if (twins) twins.forEach((t) => indicesToSmooth.add(t));
+    }
+
     const innerRadius = ringParams.innerDiameter / 2;
     const minThickness = 1.8;
 
-    // Execute 5 iterations of Laplacian smoothing for beautifully polished and professional results
-    for (let iter = 0; iter < 5; iter++) {
+    // Start from a copy of current positions; only stroke-touched vertices will differ
+    const relaxedPositions = new Float32Array(this.currentPositions);
+
+    // Execute 3 iterations of local Laplacian smoothing on touched vertices only
+    for (let iter = 0; iter < 3; iter++) {
       const tempPositions = new Float32Array(relaxedPositions);
- 
-      for (let i = 0; i < count; i++) {
+
+      for (const i of indicesToSmooth) {
         const neighbors = this.adjacencyList[i];
         if (neighbors.length === 0) continue;
- 
+
         let sumX = 0, sumY = 0, sumZ = 0;
         for (const n of neighbors) {
           sumX += tempPositions[n * 3];
           sumY += tempPositions[n * 3 + 1];
           sumZ += tempPositions[n * 3 + 2];
         }
- 
+
         const avgX = sumX / neighbors.length;
         const avgY = sumY / neighbors.length;
         const avgZ = sumZ / neighbors.length;
- 
-        // Fetch safety mask to protect inner ring size
-        const currentDxy = Math.sqrt(tempPositions[i * 3] * tempPositions[i * 3] + tempPositions[i * 3 + 1] * tempPositions[i * 3 + 1]);
-        const safetyMask = THREE.MathUtils.clamp((currentDxy - (innerRadius + 0.2)) / 0.8, 0, 1);
-        const lerpFactor = 0.35 * safetyMask; // Highly polished smooth
+
+        const currentDxz = Math.sqrt(tempPositions[i * 3] * tempPositions[i * 3] + tempPositions[i * 3 + 2] * tempPositions[i * 3 + 2]);
+        const safetyMask = THREE.MathUtils.clamp((currentDxz - (innerRadius + 0.2)) / 0.8, 0, 1);
+        const lerpFactor = 0.35 * safetyMask;
 
         let nextX = THREE.MathUtils.lerp(tempPositions[i * 3], avgX, lerpFactor);
         let nextY = THREE.MathUtils.lerp(tempPositions[i * 3 + 1], avgY, lerpFactor);
         let nextZ = THREE.MathUtils.lerp(tempPositions[i * 3 + 2], avgZ, lerpFactor);
 
-        // Enforce minimum thickness clamping
+        // Enforce minimum thickness
         const origX = this.originalPositions[i * 3];
-        const origY = this.originalPositions[i * 3 + 1];
-        const origDxy = Math.sqrt(origX * origX + origY * origY);
-        const t = THREE.MathUtils.clamp((origDxy - innerRadius) / ringParams.thickness, 0, 1);
-        const minDxyConstraint = innerRadius + t * minThickness;
+        const origZ = this.originalPositions[i * 3 + 2];
+        const origDxz = Math.sqrt(origX * origX + origZ * origZ);
+        const t = THREE.MathUtils.clamp((origDxz - innerRadius) / ringParams.thickness, 0, 1);
+        const minDxzConstraint = innerRadius + t * minThickness;
 
-        const dxy = Math.sqrt(nextX * nextX + nextY * nextY);
-        if (dxy < minDxyConstraint) {
-          const scale = minDxyConstraint / dxy;
+        const dxz = Math.sqrt(nextX * nextX + nextZ * nextZ);
+        if (dxz < minDxzConstraint) {
+          const scale = minDxzConstraint / dxz;
           nextX *= scale;
-          nextY *= scale;
+          nextZ *= scale;
         }
 
         relaxedPositions[i * 3] = nextX;
@@ -899,33 +1023,10 @@ export class SculptEngine {
       }
     }
 
-    // Welded seam safety for target positions
-    const visited = new Uint8Array(count);
-    for (let i = 0; i < count; i++) {
-      if (visited[i]) continue;
-      const twins = this.weldMap[i];
-      if (twins.length > 1) {
-        let sumX = 0, sumY = 0, sumZ = 0;
-        for (const t of twins) {
-          sumX += relaxedPositions[t * 3];
-          sumY += relaxedPositions[t * 3 + 1];
-          sumZ += relaxedPositions[t * 3 + 2];
-          visited[t] = 1;
-        }
-        const avgX = sumX / twins.length;
-        const avgY = sumY / twins.length;
-        const avgZ = sumZ / twins.length;
-        for (const t of twins) {
-          relaxedPositions[t * 3] = avgX;
-          relaxedPositions[t * 3 + 1] = avgY;
-          relaxedPositions[t * 3 + 2] = avgZ;
-        }
-      }
-    }
-
-    // Set up relaxation animation states
+    // Set up relaxation animation — only modified vertices will actually move
     this.relaxationPositionsStart = new Float32Array(this.currentPositions);
     this.relaxationPositionsTarget = relaxedPositions;
+    this.relaxationModifiedIndices = indicesToSmooth;
     this.relaxationStartTime = performance.now();
     this.isRelaxing = true;
   }
@@ -947,10 +1048,12 @@ export class SculptEngine {
     const start = this.relaxationPositionsStart;
     const target = this.relaxationPositionsTarget;
     const current = this.currentPositions;
-    const count = this.vertexCount;
 
-    for (let i = 0; i < count * 3; i++) {
-      current[i] = start[i] + (target[i] - start[i]) * easeProgress;
+    // Only interpolate the vertices that were actually touched in the last stroke
+    for (const i of this.relaxationModifiedIndices) {
+      current[i * 3]     = start[i * 3]     + (target[i * 3]     - start[i * 3])     * easeProgress;
+      current[i * 3 + 1] = start[i * 3 + 1] + (target[i * 3 + 1] - start[i * 3 + 1]) * easeProgress;
+      current[i * 3 + 2] = start[i * 3 + 2] + (target[i * 3 + 2] - start[i * 3 + 2]) * easeProgress;
     }
 
     this.updateGeometryBuffer();
@@ -959,6 +1062,7 @@ export class SculptEngine {
       this.isRelaxing = false;
       this.relaxationPositionsStart = null;
       this.relaxationPositionsTarget = null;
+      this.relaxationModifiedIndices = new Set();
     }
 
     return true;

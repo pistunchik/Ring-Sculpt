@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Пользовательское соглашение | Nebulae</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --primary: #0284c7;
+      --border: #e2e8f0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding-bottom: 60px;
+    }
+    .top-bar {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+    .top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand-link {
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 18px;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary);
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #f0f9ff;
+      transition: background 0.2s;
+    }
+    .back-link:hover {
+      background: #e0f2fe;
+    }
+    .top-actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #334155;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .btn:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .btn-primary {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .btn-primary:hover {
+      background: #1e293b;
+    }
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .doc-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 56px;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    }
+    .doc-header {
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+    .doc-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary);
+      background: #e0f2fe;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .doc-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .doc-body section {
+      margin-bottom: 28px;
+    }
+    h2 {
+      font-size: 17px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 12px;
+    }
+    p {
+      font-size: 14.5px;
+      color: #334155;
+      line-height: 1.7;
+      margin-bottom: 10px;
+    }
+    .doc-footer {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.25s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (max-width: 640px) {
+      .doc-card {
+        padding: 24px 20px;
+      }
+      .top-bar {
+        padding: 10px 14px;
+      }
+      h1 {
+        font-size: 22px;
+      }
+    }
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+      }
+      .top-bar, .toast {
+        display: none !important;
+      }
+      .container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .doc-card {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+      }
+      @page {
+        margin: 20mm;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <a href="/?page=about#about-docs" class="back-link">
+        ← На страницу «О нас»
+      </a>
+      <span class="brand-link">Nebulae</span>
+    </div>
+    <div class="top-actions">
+      <button class="btn" onclick="copyText()">📋 Копировать</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Печать / Сохранить в PDF</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="doc-card" id="documentContent">
+      <div class="doc-header">
+        <span class="doc-tag">Юридический документ</span>
+        <h1>Пользовательское соглашение</h1>
+        <div class="doc-meta">Сайт: nebulae.ru | Самозанятый Федоренко Д.В.</div>
+      </div>
+
+      <div class="doc-body">
+        <section>
+          <h2>1. Общие положения</h2>
+          <p>1.1. Настоящее Пользовательское соглашение регулирует отношения между Администрацией сайта nebulae.ru (Самозанятый Федоренко Денис Витальевич) и Пользователем. Использование 3D-редактора, навигация по сайту и оформление заказа означают полное согласие с данными условиями.</p>
+          <p>1.2. Сервис находится в режиме открытого бета-тестирования (Beta). Программный комплекс, 3D-движок и пользовательский интерфейс предоставляются по принципу «как есть» (as is). В работе сервиса возможны технические ошибки и временные сбои. При любых вопросах, замечаниях или возникновении сложностей Пользователь может обратиться в службу поддержки по адресу support@nebulae.ru или в Telegram-чат @nebulae_support.</p>
+        </section>
+
+        <section>
+          <h2>2. Оформление заказа и оплата</h2>
+          <p>2.1. Пользователь самостоятельно проектирует дизайн и параметры изделия с помощью встроенного 3D-конструктора на сайте.</p>
+          <p>2.2. Оплата заказа осуществляется в 100% размере с использованием интегрированного платежного сервиса (ЮKassa).</p>
+          <p>2.3. После подтверждения успешной оплаты и автоматической передачи деталей заказа в систему, изделие отправляется в производство.</p>
+          <p>2.4. В период открытого бета-тестирования на все изделия распространяется специальная скидка в размере 50% от базовой стоимости. В связи с отладкой производственных циклов срок изготовления индивидуальных изделий в период бета-теста составляет до 3 (трёх) недель, а отправка готовых заказов (передача в службу доставки) начнется не ранее 14 сентября 2026 года.</p>
+        </section>
+
+        <section>
+          <h2>3. Особенности возврата товаров</h2>
+          <p>3.1. В соответствии со ст. 26.1 Закона РФ «О защите прав потребителей», Пользователь не вправе отказаться от товара надлежащего качества, имеющего индивидуально-определенные свойства (созданного по уникальному макету или размеру), так как такое украшение может быть использовано исключительно приобретающим его лицом.</p>
+        </section>
+
+        <section>
+          <h2>4. Интеллектуальная собственность</h2>
+          <p>4.1. Все права на программный код, дизайн сайта, интерфейс 3D-редактора, шрифты и логотипы принадлежат Администрации. Пользователю предоставляется лишь ограниченное, неисключительное право на использование интерфейса исключительно в личных целях для формирования заказа.</p>
+        </section>
+      </div>
+
+      <div class="doc-footer">
+        <div><strong>Администрация:</strong> Самозанятый Федоренко Денис Витальевич</div>
+        <div><strong>ИНН:</strong> 770902168809</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Текст документа скопирован в буфер обмена</div>
+
+  <script>
+    function copyText() {
+      const text = document.getElementById('documentContent').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('toast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+      });
+    }
+  </script>
+</body>
+</html>

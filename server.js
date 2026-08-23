@@ -2,6 +2,8 @@ import express from 'express';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
+import fsPromises from 'fs/promises';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
@@ -12,18 +14,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const adminApp = express();
+const apiRouter = express.Router();
 
-// raw body нужен для верификации вебхука ЮКассы
-app.use('/api/payment-webhook', express.raw({ type: 'application/json' }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  next();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fieldSize: 100 * 1024 * 1024, // 100 MB
+    fileSize: 100 * 1024 * 1024,  // 100 MB
+  },
 });
+
+// CORS middleware
+const corsMiddleware = (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-admin-password');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+};
+
+app.use(corsMiddleware);
+adminApp.use(corsMiddleware);
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || process.env.VITE_TELEGRAM_CHAT_ID;
@@ -37,9 +49,11 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const SMTP_FROM = process.env.SMTP_FROM || 'Nebulae Support <support@nebulae.ru>';
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin1488';
+
 // In-memory store: paymentId → { orderNumber, orderDetails, items, stlBuffers }
-// (persists until server restart; для продакшна — замените на Redis/DB)
 const pendingOrders = new Map();
+const completedOrders = new Map();
 
 /* ─────────────────────────────────────────────────────────────
    Helpers
@@ -50,7 +64,6 @@ function buildOrderNum() {
   const mo = String(now.getMonth() + 1).padStart(2, '0');
   const yy = String(now.getFullYear()).slice(-2);
   const key = `nebulae_order_seq_${dd}${mo}${yy}`;
-  // простой счётчик в памяти — при рестарте сервера начинается заново
   if (!buildOrderNum._counters) buildOrderNum._counters = {};
   buildOrderNum._counters[key] = (buildOrderNum._counters[key] || 0) + 1;
   return `${dd}${mo}${yy}-${buildOrderNum._counters[key]}`;
@@ -85,7 +98,7 @@ async function sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBu
   });
   message += `\n💰 <b>Итого оплачено:</b> ${total.toLocaleString('ru-RU')} ₽`;
 
-  // Отправка текста
+  // Send text
   const textRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -93,22 +106,33 @@ async function sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBu
   });
   if (!textRes.ok) {
     console.error('[ERROR] Telegram sendMessage:', await textRes.text());
+  } else {
+    console.log(`[TELEGRAM] Сообщение по заказу №${orderNumber} успешно отправлено.`);
   }
 
-  // Отправка STL-файлов
+  // Send STL files
   for (let i = 0; i < stlBuffers.length; i++) {
     const { buffer, filename } = stlBuffers[i];
-    const formData = new FormData();
-    formData.append('chat_id', TELEGRAM_CHAT_ID);
-    formData.append('caption', `📦 STL-модель к заказу №${orderNumber} (Позиция #${i + 1})`);
-    const blob = new Blob([buffer], { type: 'application/octet-stream' });
-    formData.append('document', blob, filename);
-    const docRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!docRes.ok) {
-      console.error('[ERROR] Telegram sendDocument:', await docRes.text());
+    try {
+      const formData = new FormData();
+      formData.append('chat_id', TELEGRAM_CHAT_ID);
+      formData.append('caption', `📦 STL-модель к заказу №${orderNumber} (Позиция #${i + 1})`);
+      const fileObj = typeof File !== 'undefined'
+        ? new File([buffer], filename, { type: 'application/octet-stream' })
+        : new Blob([buffer], { type: 'application/octet-stream' });
+
+      formData.append('document', fileObj, filename);
+      const docRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!docRes.ok) {
+        console.error('[ERROR] Telegram sendDocument:', await docRes.text());
+      } else {
+        console.log(`[TELEGRAM] STL-файл ${filename} отправлен в бот.`);
+      }
+    } catch (fileErr) {
+      console.error(`[ERROR] Telegram sendDocument (${filename}):`, fileErr);
     }
   }
 }
@@ -270,7 +294,7 @@ async function sendOrderEmail(orderNumber, orderDetails, parsedItems) {
   `;
 
   if (!transporter) {
-    console.warn(`[WARN] SMTP не настроен в .env. Сообщение от support@nebulae.ru для ${userEmail} по заказу №${orderNumber} сформировано (задайте SMTP_* в .env для отправки).`);
+    console.warn(`[WARN] SMTP не настроен в .env. Сообщение от support@nebulae.ru для ${userEmail} по заказу №${orderNumber} сформировано.`);
     return;
   }
 
@@ -281,20 +305,82 @@ async function sendOrderEmail(orderNumber, orderDetails, parsedItems) {
       subject: `Ваш заказ №${orderNumber} принят | Nebulae`,
       html: htmlContent,
     });
-    console.log(`[EMAIL] Письмо о заказе №${orderNumber} отправлено от support@nebulae.ru на ${userEmail} (MessageID: ${info.messageId})`);
+    console.log(`[EMAIL] Письмо о заказе №${orderNumber} отправлено на ${userEmail} (MessageID: ${info.messageId})`);
   } catch (err) {
-    console.error(`[ERROR] Ошибка отправки письма от support@nebulae.ru на ${userEmail}:`, err);
+    console.error(`[ERROR] Ошибка отправки письма на ${userEmail}:`, err);
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
-   POST /api/create-payment
-   Принимает FormData с данными заказа + STL-файлы.
-   Создаёт платёж в ЮКассе, возвращает { confirmationUrl, orderNumber }.
-───────────────────────────────────────────────────────────── */
-app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
+async function processOrderCompletion(pending, source = 'confirmation') {
+  if (!pending) return false;
+  if (pending.sent) {
+    console.log(`[ORDER PROCESSOR] Заказ №${pending.orderNumber} уже был обработан ранее.`);
+    return true;
+  }
+
+  pending.sent = true;
+  const { orderNumber, orderDetails, parsedItems, stlBuffers, paymentId } = pending;
+
+  console.log(`[ORDER PROCESSOR] Обработка заказа №${orderNumber} (источник: ${source})...`);
+
   try {
-    // Если ЮКасса не настроена — отправляем заказ напрямую в Telegram (режим разработки)
+    await sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBuffers);
+  } catch (err) {
+    console.error(`[ERROR] Telegram notification failed for order №${orderNumber}:`, err);
+  }
+
+  try {
+    await sendOrderEmail(orderNumber, orderDetails, parsedItems);
+  } catch (err) {
+    console.error(`[ERROR] Email notification failed for order №${orderNumber}:`, err);
+  }
+
+  if (orderNumber) completedOrders.set(orderNumber, Date.now());
+  if (paymentId) pendingOrders.delete(paymentId);
+  if (orderNumber) pendingOrders.delete(orderNumber);
+
+  return true;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   API Router Setup
+───────────────────────────────────────────────────────────── */
+
+// Middleware to verify admin password
+function requireAdminAuth(req, res, next) {
+  const authHeader = req.headers['x-admin-password'] || req.headers['authorization'];
+  let providedPassword = '';
+  if (authHeader) {
+    if (authHeader.startsWith('Bearer ')) {
+      providedPassword = authHeader.substring(7).trim();
+    } else {
+      providedPassword = authHeader.trim();
+    }
+  }
+
+  if (!providedPassword || providedPassword !== ADMIN_PASSWORD) {
+    return res.status(401).json({ success: false, error: 'Неверный пароль администратора' });
+  }
+  next();
+}
+
+// Support raw body for YooKassa webhook
+apiRouter.use('/payment-webhook', express.raw({ type: 'application/json' }));
+apiRouter.use(express.json({ limit: '100mb' }));
+apiRouter.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// POST /api/admin/verify
+apiRouter.post('/admin/verify', (req, res) => {
+  const { password } = req.body;
+  if (password && password === ADMIN_PASSWORD) {
+    return res.json({ success: true, message: 'Авторизация успешна' });
+  }
+  return res.status(401).json({ success: false, error: 'Неверный пароль' });
+});
+
+// POST /api/create-payment
+apiRouter.post('/create-payment', upload.array('stlFiles'), async (req, res) => {
+  try {
     if (!YUKASSA_SHOP_ID || !YUKASSA_SECRET_KEY ||
       YUKASSA_SHOP_ID === 'ВАШ_SHOP_ID' || YUKASSA_SECRET_KEY === 'ВАШ_SECRET_KEY') {
       console.warn('[WARN] ЮКасса не настроена — отправляем заказ напрямую в Telegram.');
@@ -327,14 +413,12 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
     const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
     const orderNumber = buildOrderNum();
 
-    // Считаем сумму
     const totalKopecks = parsedItems.reduce(
       (sum, item) => sum + Math.round(item.price * item.quantity * 100),
       0
     );
     const totalRub = (totalKopecks / 100).toFixed(2);
 
-    // Сохраняем STL-буферы для последующей отправки после оплаты
     const stlBuffers = (req.files || []).map((f, i) => ({
       buffer: f.buffer,
       filename: f.originalname || `Model_${orderNumber}_${i + 1}.stl`,
@@ -381,20 +465,23 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
 
     const payment = await yukRes.json();
 
-    // Сохраняем данные заказа в памяти до получения вебхука
-    pendingOrders.set(payment.id, {
+    const orderRecord = {
+      paymentId: payment.id,
       orderNumber,
       orderDetails: { customerName, phone, email, address, comment, deliveryMethod: 'yandex_market' },
       parsedItems,
       stlBuffers,
-    });
+      sent: false,
+      _createdAt: Date.now(),
+    };
 
-    // Подчищаем старые записи (старше 24 часов) — простая защита от утечки памяти
+    pendingOrders.set(payment.id, orderRecord);
+    pendingOrders.set(orderNumber, orderRecord);
+
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     for (const [key, val] of pendingOrders.entries()) {
       if (val._createdAt && val._createdAt < cutoff) pendingOrders.delete(key);
     }
-    pendingOrders.get(payment.id)._createdAt = Date.now();
 
     res.json({
       success: true,
@@ -407,35 +494,67 @@ app.post('/api/create-payment', upload.array('stlFiles'), async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────────────────
-   POST /api/payment-webhook
-   ЮКасса отправляет сюда уведомления об изменении статуса.
-   При succeeded — отправляет заказ в Telegram.
-───────────────────────────────────────────────────────────── */
-app.post('/api/payment-webhook', async (req, res) => {
+// POST /api/confirm-payment
+apiRouter.post('/confirm-payment', async (req, res) => {
   try {
-    // Тело может прийти как Buffer (из express.raw) или объект
+    const { orderNumber, paymentId: reqPaymentId } = req.body;
+    let pending = (reqPaymentId && pendingOrders.get(reqPaymentId)) || (orderNumber && pendingOrders.get(orderNumber));
+
+    if (!pending) {
+      if (orderNumber && completedOrders.has(orderNumber)) {
+        return res.json({ success: true, status: 'succeeded', message: 'Заказ уже обработан.' });
+      }
+      return res.json({ success: false, status: 'canceled', message: 'Заказ не найден или отменён.' });
+    }
+
+    const paymentId = pending.paymentId || reqPaymentId;
+
+    if (paymentId && YUKASSA_SHOP_ID && YUKASSA_SECRET_KEY &&
+      YUKASSA_SHOP_ID !== 'ВАШ_SHOP_ID' && YUKASSA_SECRET_KEY !== 'ВАШ_SECRET_KEY') {
+      try {
+        const yukRes = await fetch(`https://api.yookassa.ru/v3/payments/${paymentId}`, {
+          method: 'GET',
+          headers: {
+            Authorization: 'Basic ' + Buffer.from(`${YUKASSA_SHOP_ID}:${YUKASSA_SECRET_KEY}`).toString('base64'),
+          },
+        });
+
+        if (yukRes.ok) {
+          const payment = await yukRes.json();
+          if (payment.status !== 'succeeded') {
+            return res.json({
+              success: false,
+              status: payment.status,
+              message: payment.status === 'canceled' ? 'Платёж был отменён пользователем.' : 'Платёж не завершён.',
+            });
+          }
+        }
+      } catch (yukErr) {
+        console.error('[CONFIRM PAYMENT] Error checking YooKassa:', yukErr);
+      }
+    }
+
+    await processOrderCompletion(pending, 'Confirm-Payment Endpoint');
+    res.json({ success: true, status: 'succeeded' });
+  } catch (err) {
+    console.error('[ERROR] /api/confirm-payment:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/payment-webhook
+apiRouter.post('/payment-webhook', async (req, res) => {
+  try {
     const body = Buffer.isBuffer(req.body)
       ? JSON.parse(req.body.toString('utf8'))
       : req.body;
 
-    console.log('[WEBHOOK] ЮКасса:', body?.event, body?.object?.id, body?.object?.status);
-
     if (body?.event === 'payment.succeeded') {
       const paymentId = body.object?.id;
       const pending = pendingOrders.get(paymentId);
-
-      if (!pending) {
-        console.warn('[WEBHOOK] Заказ не найден для paymentId:', paymentId);
-        return res.sendStatus(200); // отвечаем 200, чтобы ЮКасса не повторяла
+      if (pending) {
+        await processOrderCompletion(pending, 'YooKassa Webhook');
       }
-
-      const { orderNumber, orderDetails, parsedItems, stlBuffers } = pending;
-      pendingOrders.delete(paymentId);
-
-      await sendOrderToTelegram(orderNumber, orderDetails, parsedItems, stlBuffers);
-      await sendOrderEmail(orderNumber, orderDetails, parsedItems);
-      console.log(`[WEBHOOK] Заказ №${orderNumber} успешно отправлен в Telegram и на Email.`);
     }
 
     res.sendStatus(200);
@@ -445,10 +564,8 @@ app.post('/api/payment-webhook', async (req, res) => {
   }
 });
 
-/* ─────────────────────────────────────────────────────────────
-   POST /api/checkout — оригинальный эндпоинт (резервный)
-───────────────────────────────────────────────────────────── */
-app.post('/api/checkout', upload.array('stlFiles'), async (req, res) => {
+// POST /api/checkout
+apiRouter.post('/checkout', upload.array('stlFiles'), async (req, res) => {
   try {
     const { orderNumber, customerName, phone, email, deliveryMethod, address, comment, items } = req.body;
     const parsedItems = typeof items === 'string' ? JSON.parse(items) : items;
@@ -477,13 +594,288 @@ app.post('/api/checkout', upload.array('stlFiles'), async (req, res) => {
   }
 });
 
-// Статика фронтенда
+/* ─────────────────────────────────────────────────────────────
+   Catalog Data & Operations
+───────────────────────────────────────────────────────────── */
+const CATALOG_DIR = path.join(__dirname, 'catalog-data');
+const CATALOG_STL_DIR = path.join(CATALOG_DIR, 'stl');
+const CATALOG_FILE = path.join(CATALOG_DIR, 'catalog.json');
+
+if (!fs.existsSync(CATALOG_DIR)) fs.mkdirSync(CATALOG_DIR, { recursive: true });
+if (!fs.existsSync(CATALOG_STL_DIR)) fs.mkdirSync(CATALOG_STL_DIR, { recursive: true });
+
+async function readCatalogData() {
+  try {
+    if (fs.existsSync(CATALOG_FILE)) {
+      const data = await fsPromises.readFile(CATALOG_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('[CATALOG] Error reading catalog.json:', err);
+  }
+  return [];
+}
+
+async function writeCatalogData(items) {
+  try {
+    await fsPromises.writeFile(CATALOG_FILE, JSON.stringify(items, null, 2), 'utf-8');
+    return true;
+  } catch (err) {
+    console.error('[CATALOG] Error writing catalog.json:', err);
+    return false;
+  }
+}
+
+// GET /api/catalog
+apiRouter.get('/catalog', async (req, res) => {
+  try {
+    const items = await readCatalogData();
+    res.json({ success: true, items });
+  } catch (err) {
+    console.error('[ERROR] GET /api/catalog:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/catalog/stl/:filename
+apiRouter.get('/catalog/stl/:filename', (req, res) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(CATALOG_STL_DIR, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: 'STL file not found' });
+    }
+    res.setHeader('Content-Type', 'model/stl');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(filePath);
+  } catch (err) {
+    console.error('[ERROR] GET /api/catalog/stl:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/catalog — add new item or import STL
+apiRouter.post('/catalog', requireAdminAuth, upload.single('stlFile'), async (req, res) => {
+  try {
+    const {
+      name,
+      category,
+      categoryName,
+      description,
+      price,
+      badge,
+      defaultParams,
+      defaultMaterial,
+      defaultInscription,
+      isActive,
+      customStlBase64,
+    } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Название изделия обязательно' });
+    }
+
+    const items = await readCatalogData();
+    const id = 'cat_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+    let stlFileName = '';
+
+    // If file was uploaded via multipart/form-data
+    if (req.file) {
+      const cleanOriginal = (req.file.originalname || 'model.stl').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+      stlFileName = `${id}_${cleanOriginal}`;
+      if (!stlFileName.endsWith('.stl')) stlFileName += '.stl';
+      await fsPromises.writeFile(path.join(CATALOG_STL_DIR, stlFileName), req.file.buffer);
+    } else if (customStlBase64) {
+      const base64Clean = customStlBase64.includes(',') ? customStlBase64.split(',')[1] : customStlBase64;
+      const buffer = Buffer.from(base64Clean, 'base64');
+      stlFileName = `${id}_model.stl`;
+      await fsPromises.writeFile(path.join(CATALOG_STL_DIR, stlFileName), buffer);
+    }
+
+    const parsedDefaultParams = typeof defaultParams === 'string'
+      ? JSON.parse(defaultParams)
+      : defaultParams || { innerDiameter: 17.5, width: 6, thickness: 2.5 };
+
+    const newItem = {
+      id,
+      name: name.trim(),
+      category: category || 'rings',
+      categoryName: categoryName || 'Кольца',
+      description: description ? description.trim() : '',
+      price: Number(price) || 1500,
+      badge: badge ? badge.trim() : '',
+      defaultParams: parsedDefaultParams,
+      defaultMaterial: defaultMaterial || 'pastel_milky',
+      defaultInscription: defaultInscription || '',
+      stlFileName,
+      isActive: isActive === undefined ? true : (isActive === 'true' || isActive === true),
+      createdAt: new Date().toISOString(),
+    };
+
+    items.unshift(newItem);
+    await writeCatalogData(items);
+
+    console.log(`[CATALOG] Добавлен новый товар: ${newItem.name} (${newItem.id})`);
+    res.status(201).json({ success: true, item: newItem });
+  } catch (err) {
+    console.error('[ERROR] POST /api/catalog:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/catalog/:id — update existing item
+apiRouter.put('/catalog/:id', requireAdminAuth, upload.single('stlFile'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const items = await readCatalogData();
+    const index = items.findIndex((it) => it.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Товар не найден' });
+    }
+
+    const existing = items[index];
+    const {
+      name,
+      category,
+      categoryName,
+      description,
+      price,
+      badge,
+      defaultParams,
+      defaultMaterial,
+      defaultInscription,
+      isActive,
+      customStlBase64,
+    } = req.body;
+
+    let stlFileName = existing.stlFileName;
+
+    if (req.file) {
+      const cleanOriginal = (req.file.originalname || 'model.stl').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+      stlFileName = `${id}_${cleanOriginal}`;
+      if (!stlFileName.endsWith('.stl')) stlFileName += '.stl';
+      await fsPromises.writeFile(path.join(CATALOG_STL_DIR, stlFileName), req.file.buffer);
+    } else if (customStlBase64) {
+      const base64Clean = customStlBase64.includes(',') ? customStlBase64.split(',')[1] : customStlBase64;
+      const buffer = Buffer.from(base64Clean, 'base64');
+      stlFileName = `${id}_model.stl`;
+      await fsPromises.writeFile(path.join(CATALOG_STL_DIR, stlFileName), buffer);
+    }
+
+    const parsedDefaultParams = defaultParams !== undefined
+      ? (typeof defaultParams === 'string' ? JSON.parse(defaultParams) : defaultParams)
+      : existing.defaultParams;
+
+    const updatedItem = {
+      ...existing,
+      name: name !== undefined ? name.trim() : existing.name,
+      category: category !== undefined ? category : existing.category,
+      categoryName: categoryName !== undefined ? categoryName : existing.categoryName,
+      description: description !== undefined ? description.trim() : existing.description,
+      price: price !== undefined ? Number(price) : existing.price,
+      badge: badge !== undefined ? badge.trim() : existing.badge,
+      defaultParams: parsedDefaultParams,
+      defaultMaterial: defaultMaterial !== undefined ? defaultMaterial : existing.defaultMaterial,
+      defaultInscription: defaultInscription !== undefined ? defaultInscription : existing.defaultInscription,
+      stlFileName,
+      isActive: isActive !== undefined ? (isActive === 'true' || isActive === true) : existing.isActive,
+      updatedAt: new Date().toISOString(),
+    };
+
+    items[index] = updatedItem;
+    await writeCatalogData(items);
+
+    console.log(`[CATALOG] Обновлен товар: ${updatedItem.name} (${updatedItem.id})`);
+    res.json({ success: true, item: updatedItem });
+  } catch (err) {
+    console.error('[ERROR] PUT /api/catalog/:id:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/catalog/:id — remove item from catalog
+apiRouter.delete('/catalog/:id', requireAdminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const items = await readCatalogData();
+    const item = items.find((it) => it.id === id);
+
+    if (!item) {
+      return res.status(404).json({ success: false, error: 'Товар не найден' });
+    }
+
+    if (item.stlFileName) {
+      const stlPath = path.join(CATALOG_STL_DIR, item.stlFileName);
+      if (fs.existsSync(stlPath)) {
+        try {
+          await fsPromises.unlink(stlPath);
+        } catch (delErr) {
+          console.warn('[CATALOG] Could not delete STL file:', delErr.message);
+        }
+      }
+    }
+
+    const filtered = items.filter((it) => it.id !== id);
+    await writeCatalogData(filtered);
+
+    console.log(`[CATALOG] Удален товар: ${item.name} (${id})`);
+    res.json({ success: true, id });
+  } catch (err) {
+    console.error('[ERROR] DELETE /api/catalog/:id:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────
+   Mount API on Main App (port 3001) & Admin App (port 1488)
+───────────────────────────────────────────────────────────── */
+
+// Main App (port 3001)
+app.use('/api', apiRouter);
+app.use('/catalog-data', express.static(CATALOG_DIR));
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
+// Admin App (port 1488)
+adminApp.use('/api', apiRouter);
+adminApp.use('/catalog-data', express.static(CATALOG_DIR));
+
+const adminDistDir = path.join(__dirname, 'dist-admin');
+if (fs.existsSync(adminDistDir)) {
+  adminApp.use(express.static(adminDistDir));
+  adminApp.get('*', (req, res) => {
+    const adminHtml = path.join(adminDistDir, 'admin.html');
+    if (fs.existsSync(adminHtml)) {
+      res.sendFile(adminHtml);
+    } else {
+      res.sendFile(path.join(adminDistDir, 'index.html'));
+    }
+  });
+} else {
+  adminApp.get('*', (req, res) => {
+    const adminHtmlPath = path.join(__dirname, 'dist', 'admin.html');
+    if (fs.existsSync(adminHtmlPath)) {
+      res.sendFile(adminHtmlPath);
+    } else {
+      res.sendFile(path.join(__dirname, 'admin.html'));
+    }
+  });
+}
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`[SERVER] Запущен на порту ${PORT}`);
+  console.log(`[SERVER] Основной сервер запущен на порту ${PORT}`);
 });
+
+const ADMIN_PORT = process.env.ADMIN_PORT || 1488;
+try {
+  adminApp.listen(ADMIN_PORT, () => {
+    console.log(`[ADMIN] Админ-панель доступна на отдельном порту http://localhost:${ADMIN_PORT}`);
+  });
+} catch (adminErr) {
+  console.error(`[ADMIN] Не удалось запустить админ-сервер на порту ${ADMIN_PORT}:`, adminErr);
+}

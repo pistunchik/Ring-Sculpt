@@ -71,9 +71,10 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStart, onSkip, onOpenCata
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-2xl font-bold text-white mb-1 tracking-tight"
+            className="text-2xl font-bold text-white mb-1 tracking-tight flex items-center justify-center gap-2 flex-wrap"
           >
-            Добро пожаловать в Nebulae
+            <span>Добро пожаловать в</span>
+            <span className="font-pilowlava text-3xl tracking-wide text-cyan-400 font-normal">Nebulae</span>
           </motion.h2>
           <motion.p
             initial={{ opacity: 0, y: 8 }}
@@ -100,6 +101,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStart, onSkip, onOpenCata
               boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
             }}
           >
+            <BookOpen className="w-4 h-4 text-cyan-400" />
             <span>Открыть каталог готовых украшений</span>
             <ChevronRight className="w-4 h-4" />
           </motion.button>
@@ -298,7 +300,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ runOnMount = false }) =>
           popover: {
             title: 'Всё готово!',
             description:
-              '<p>Вы узнали обо всех возможностях Nebulae.</p>' +
+              '<p>Вы узнали обо всех возможностях <span class="font-pilowlava font-bold">Nebulae</span>.</p>' +
               '<p style="margin-top:8px;color:#10b981;font-weight:600">Начните лепить, добавляйте вставки, создайте надпись и закажите своё уникальное кольцо!</p>',
             side: 'top',
             align: 'center',

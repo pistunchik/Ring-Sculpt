@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+@font-face {
+  font-family: 'Pilowlava';
+  src: url('/fonts/pilowlava-regular.woff2') format('woff2'),
+       url('/fonts/pilowlava-regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-pilowlava: 'Pilowlava', sans-serif;
+}
+
+.font-pilowlava {
+  font-family: 'Pilowlava', sans-serif !important;
+}

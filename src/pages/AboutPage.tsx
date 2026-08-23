@@ -1,22 +1,38 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft,
   Sparkles,
-  Heart,
-  Star,
-  Gem,
-  Mail,
-  Phone,
-  MapPin,
-  Printer,
+  HelpCircle,
   Cpu,
+  Truck,
+  Mail,
+  Send,
+  User,
+  FileText,
+  Download,
+  Leaf,
+  ShieldCheck,
+  Zap,
+  CheckCircle2,
   Package,
+  Gift,
+  ExternalLink,
+  Eye,
+  Printer,
+  Scale,
+  Lock,
+  Clock,
 } from 'lucide-react';
 import { useRouter } from '../router';
+import packagingImage from '../assets/packaging_custom.jpg';
+import { LEGAL_DOCUMENTS } from '../data/legalDocuments';
+import { DocumentModal } from '../components/DocumentModal';
 
 const FadeIn: React.FC<{ children: React.ReactNode; delay?: number; className?: string }> = ({
-  children, delay = 0, className = '',
+  children,
+  delay = 0,
+  className = '',
 }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
@@ -30,189 +46,403 @@ const FadeIn: React.FC<{ children: React.ReactNode; delay?: number; className?: 
 
 export const AboutPage: React.FC = () => {
   const { navigate } = useRouter();
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+
+  const handleOpenDoc = (docId: string) => {
+    setSelectedDocId(docId);
+    setIsDocModalOpen(true);
+  };
+
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#f6f5f1] flex flex-col font-sans antialiased">
-      {/* Top bar */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-neutral-200/60 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center gap-4">
+    <div className="min-h-screen bg-[#f6f5f1] flex flex-col font-sans text-neutral-800 selection:bg-cyan-500 selection:text-black">
+      {/* Top Header */}
+      <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-neutral-200/60 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <button
             onClick={() => navigate('editor')}
-            className="flex items-center gap-1.5 text-[13px] font-semibold text-neutral-600 hover:text-neutral-900 transition-colors"
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-neutral-600 hover:text-neutral-900 transition-colors cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Редактор
+            <ArrowLeft className="w-4 h-4 text-cyan-600" />
+            <span>В 3D-редактор</span>
           </button>
-          <div className="flex-1 text-center">
-            <span className="text-[15px] font-bold tracking-tight text-neutral-900">О нас</span>
-          </div>
-          <div className="w-20" /> {/* balance */}
+
+
+
+
         </div>
       </header>
 
-      {/* Hero */}
+      {/* Hero Banner */}
       <div className="bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-white overflow-hidden relative">
-        {/* Decorative glows */}
-        <div className="absolute top-0 left-1/4 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-1/4 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24 flex flex-col items-center text-center gap-6">
-          <FadeIn delay={0.05}>
-            <div className="w-20 h-20 rounded-3xl bg-white/10 border border-white/10 flex items-center justify-center mx-auto">
-              <Gem className="w-10 h-10 text-cyan-400" />
-            </div>
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 py-14 sm:py-20 flex flex-col items-center text-center gap-5">
+
+
+          <FadeIn delay={0.1}>
+            <h1 className="text-3xl sm:text-5xl font-black leading-tight tracking-tight">
+              Всё о сервисе <span className="font-pilowlava font-normal text-4xl sm:text-6xl tracking-wide">Nebulae</span>,<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-pink-400">
+                технологиях и доставке
+              </span>
+            </h1>
           </FadeIn>
 
-          <FadeIn delay={0.12}>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-3">Nebulae Studio</p>
-              <h1 className="text-4xl sm:text-5xl font-black leading-tight">
-                Украшения из будущего,<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-pink-400">
-                  созданные сегодня
-                </span>
-              </h1>
-            </div>
-          </FadeIn>
 
-          <FadeIn delay={0.2}>
-            <p className="text-neutral-400 text-base leading-relaxed max-w-lg">
-              Мы верим, что каждое украшение должно быть таким же уникальным, как и его владелец. Именно поэтому мы создали редактор, который позволяет вам стать дизайнером своего собственного кольца.
-            </p>
+          {/* Quick Nav Chips */}
+          <FadeIn delay={0.2} className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            {[
+              { label: 'Что это такое?', target: 'about-service' },
+              { label: 'Технология', target: 'about-tech' },
+              { label: 'Доставка', target: 'about-delivery' },
+              { label: 'Контакты', target: 'about-contacts' },
+              { label: 'Документы', target: 'about-docs' },
+            ].map((chip) => (
+              <button
+                key={chip.target}
+                onClick={() => scrollToSection(chip.target)}
+                className="px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/15 border border-white/10 text-xs font-medium text-neutral-200 transition-all cursor-pointer"
+              >
+                {chip.label}
+              </button>
+            ))}
           </FadeIn>
         </div>
       </div>
 
+      {/* Main Container */}
       <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-12 space-y-16">
 
-        {/* Story */}
-        <FadeIn delay={0.05}>
-          <section className="grid sm:grid-cols-2 gap-8 items-center">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Наша история</p>
-              <h2 className="text-2xl font-black text-neutral-900 mb-4">Начали с одного кольца</h2>
-              <p className="text-neutral-500 text-[14px] leading-relaxed mb-3">
-                Nebulae появилась из простой идеи: что если каждый человек сможет создать ювелирное украшение, которое точно отражает его личность — без посредников, без огромных бюджетов?
-              </p>
-              <p className="text-neutral-500 text-[14px] leading-relaxed">
-                Мы объединили 3D-скульптинг, точную печать и ручную обработку в один бесшовный процесс. Сегодня тысячи уникальных колец носят по всей России.
-              </p>
+        {/* ── SECTION 1: Что это такое? ── */}
+        <section id="about-service" className="scroll-mt-24">
+          <FadeIn>
+            <div className="flex items-center gap-2.5 mb-3 text-cyan-600">
+              <HelpCircle className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">О сервисе</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { num: '2 000+', label: 'изделий изготовлено' },
-                { num: '98%', label: 'довольных клиентов' },
-                { num: '14', label: 'городов доставки' },
-                { num: '3', label: 'года на рынке' },
-              ].map((s) => (
-                <div key={s.label} className="bg-white rounded-2xl border border-neutral-100 p-4 text-center shadow-sm">
-                  <p className="text-2xl font-black text-neutral-900">{s.num}</p>
-                  <p className="text-[11px] text-neutral-500 mt-1 leading-tight">{s.label}</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 mb-4">Что это такое?</h2>
+
+            <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-sm space-y-4">
+              <p className="text-neutral-600 text-sm sm:text-base leading-relaxed">
+                <strong className="text-neutral-900 font-pilowlava text-lg font-normal tracking-wide">Nebulae</strong> — это 3D-конструктор и сервис нового поколения. Используя конструктор <span className="font-pilowlava text-base text-neutral-900 font-normal tracking-wide">Nebulae</span> вы можете сами смоделировать уникальное современное украшение. WW
+              </p>
+
+              <div className="grid sm:grid-cols-3 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex flex-col gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-700 flex items-center justify-center font-bold text-xs">
+                    01
+                  </div>
+                  <p className="font-bold text-neutral-900 text-sm">Удобный интерфейс</p>
+                  <p className="text-xs text-neutral-500 leading-relaxed">
+                    Интуитивно понятный интерфейс, позволяющий легко создать украшение под свои желания.
+                  </p>
                 </div>
-              ))}
-            </div>
-          </section>
-        </FadeIn>
 
-        {/* How it works */}
-        <FadeIn delay={0.1}>
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Как это работает</p>
-            <h2 className="text-2xl font-black text-neutral-900 mb-6">От идеи до украшения</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {[
-                { icon: Cpu, step: '01', title: 'Создайте в редакторе', desc: 'Выберите форму, материал, добавьте гравировку или вставки. Или выберите готовый дизайн из каталога.' },
-                { icon: Printer, step: '02', title: 'Мы печатаем', desc: 'Ваше кольцо печатается на профессиональном 3D-принтере из высококачественного UV-полимера.' },
-                { icon: Package, step: '03', title: 'Доставка к вам', desc: 'Готовое украшение проходит ручную обработку и упаковывается в фирменную коробку Nebulae.' },
-              ].map((step) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.step} className="bg-white rounded-2xl border border-neutral-100 p-5 shadow-sm flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-neutral-950 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-white" />
-                      </div>
-                      <span className="text-2xl font-black text-neutral-200">{step.step}</span>
-                    </div>
-                    <div>
-                      <p className="font-bold text-neutral-900 text-[14px] mb-1">{step.title}</p>
-                      <p className="text-[12px] text-neutral-500 leading-relaxed">{step.desc}</p>
-                    </div>
+                <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex flex-col gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-pink-500/10 text-pink-700 flex items-center justify-center font-bold text-xs">
+                    02
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        </FadeIn>
+                  <p className="font-bold text-neutral-900 text-sm">Уникальность</p>
+                  <p className="text-xs text-neutral-500 leading-relaxed">
+                    Создавайте украшения, которые полностью соответствуют вашему стилю и индивидуальности.
+                  </p>
+                </div>
 
-        {/* Values */}
-        <FadeIn delay={0.15}>
-          <section>
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Наши ценности</p>
-            <h2 className="text-2xl font-black text-neutral-900 mb-6">Что для нас важно</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {[
-                { icon: Sparkles, title: 'Уникальность', desc: 'Каждое изделие — единственное в своём роде. Мы не делаем одинаковые кольца.', color: 'text-cyan-500 bg-cyan-50' },
-                { icon: Heart, title: 'Забота', desc: 'Мы сопровождаем каждый заказ и отвечаем на вопросы на каждом этапе.', color: 'text-pink-500 bg-pink-50' },
-                { icon: Star, title: 'Качество', desc: 'Точная печать, ручная шлифовка и строгий контроль каждого изделия.', color: 'text-amber-500 bg-amber-50' },
-              ].map((v) => {
-                const Icon = v.icon;
-                return (
-                  <div key={v.title} className="bg-white rounded-2xl border border-neutral-100 p-5 shadow-sm">
-                    <div className={`w-10 h-10 rounded-xl ${v.color} flex items-center justify-center mb-3`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <p className="font-bold text-neutral-900 text-[14px] mb-1">{v.title}</p>
-                    <p className="text-[12px] text-neutral-500 leading-relaxed">{v.desc}</p>
+                <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex flex-col gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                    03
                   </div>
-                );
-              })}
+                  <p className="font-bold text-neutral-900 text-sm">Новизна</p>
+                  <p className="text-xs text-neutral-500 leading-relaxed">
+                    Современное производство и экологичные материалы.
+                  </p>
+                </div>
+              </div>
             </div>
-          </section>
-        </FadeIn>
+          </FadeIn>
+        </section>
 
-        {/* Contact */}
-        <FadeIn delay={0.2}>
-          <section className="bg-neutral-950 text-white rounded-3xl p-8 sm:p-10">
-            <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 mb-2">Контакты</p>
-            <h2 className="text-2xl font-black mb-6">Свяжитесь с нами</h2>
-            <div className="grid sm:grid-cols-3 gap-4">
-              {[
-                { icon: Mail, label: 'Email', value: 'hello@nebulae.studio', href: 'mailto:hello@nebulae.studio' },
-                { icon: Phone, label: 'Телефон', value: '+7 (999) 000-00-00', href: 'tel:+79990000000' },
-                { icon: MapPin, label: 'Адрес', value: 'Москва, ул. Дизайнерская, 1', href: '#' },
-              ].map((c) => {
-                const Icon = c.icon;
-                return (
-                  <a
-                    key={c.label}
-                    href={c.href}
-                    className="flex items-start gap-3 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+        {/* ── SECTION 2: Технология и PLA ── */}
+        <section id="about-tech" className="scroll-mt-24">
+          <FadeIn>
+            <div className="flex items-center gap-2.5 mb-3 text-pink-600">
+              <Cpu className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">Технология</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 mb-2">Технология 3D-печати и Материал PLA</h2>
+            <p className="text-neutral-500 text-sm mb-6">
+              Мы используем передовую аддитивную печать высокого разрешения и экологичные биополимеры.
+            </p>
+
+            <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-sm space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900 mb-2">Что такое материал PLA (Полилактид)?</h3>
+                <p className="text-neutral-600 text-sm leading-relaxed">
+                  <strong>PLA (Полилактид)</strong> — это высокотехнологичный термопластичный биополимер, создаваемый из натуральных возобновляемых ресурсов, таких как кукурузный крахмал и сахарный тростник.
+                </p>
+              </div>
+
+              {/* Grid of PLA Advantages */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex items-start gap-3">
+
+                  <div>
+                    <p className="font-bold text-neutral-900 text-sm">Экологичность и Биоразлагаемость</p>
+                    <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                      Полностью безопасен для природы. В отличие от нефтяных пластиков, разлагается на естественные органические компоненты.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-cyan-50/60 border border-cyan-100 flex items-start gap-3">
+
+                  <div>
+                    <p className="font-bold text-neutral-900 text-sm">Гипоаллергенность и Безопасность</p>
+                    <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                      Абсолютно безопасен при длительном контакте с кожей. Не вызывает аллергии, раздражений и не имеет запаха.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100 flex items-start gap-3">
+
+                  <div>
+                    <p className="font-bold text-neutral-900 text-sm">Легкость и комфорт</p>
+                    <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                      Украшения невероятно легкие и комфортные при ежедневной носке.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-purple-50/60 border border-purple-100 flex items-start gap-3">
+
+                  <div>
+                    <p className="font-bold text-neutral-900 text-sm">Свобода формы</p>
+                    <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+                      3D-печать позволяет воплотить в реальность самые смелые дизайнерские идеи.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+        </section>
+
+
+        {/* ── SECTION 4: Доставка ── */}
+        <section id="about-delivery" className="scroll-mt-24">
+          <FadeIn>
+            <div className="flex items-center gap-2.5 mb-3 text-emerald-600">
+              <Truck className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">Доставка</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 mb-4">Бесплатная доставка по всей России</h2>
+
+            <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-sm space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 font-bold">
+                  <Package className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-neutral-900 mb-1">Яндекс Доставка</h3>
+                  <p className="text-neutral-600 text-sm leading-relaxed">
+                    Все заказы Nebulae доставляются <strong className="text-emerald-700 font-bold">совершенно бесплатно</strong> по всей территории Российской Федерации через логистическую службу <strong>Яндекс Доставки</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-bold text-neutral-900 text-sm">Пункты выдачи (ПВЗ)</p>
+                    <p className="text-neutral-500 mt-0.5">Выдача в любом удобном пункте Яндекс Маркета рядом с вашим домом или работой.</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-neutral-50 border border-neutral-100 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-bold text-neutral-900 text-sm">Трек-номер и отслеживание</p>
+                    <p className="text-neutral-500 mt-0.5">Пришлем трек-номер на почту, также заказ можно отследить в приложении Яндекс Маркет.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Beta notice in delivery */}
+              <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 text-xs flex items-start gap-3">
+                <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong className="block text-amber-950 font-bold mb-0.5">Сроки в период бета-тестирования:</strong>
+                  Во время открытого бета-теста время изготовления украшений увеличено <strong className="text-amber-950">до 3-х недель</strong>, а отправка готовых изделий начнется <strong className="text-amber-950">не ранее 14 сентября 2026 года</strong>. На все заказы действует скидка 50%.
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+        </section>
+
+        {/* ── SECTION 4: Контакты ── */}
+        <section id="about-contacts" className="scroll-mt-24">
+          <FadeIn>
+            <div className="bg-neutral-950 text-white rounded-3xl p-6 sm:p-10 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="flex items-center gap-2.5 mb-3 text-cyan-400">
+                <Mail className="w-5 h-5" />
+                <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">Контакты</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black mb-6">Реквизиты и связь</h2>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <a
+                  href="mailto:support@nebulae.ru"
+                  className="flex items-center gap-3.5 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-all">
+                    <Mail className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-neutral-400 uppercase tracking-wide">Электронная почта</p>
+                    <p className="text-sm font-semibold text-white mt-0.5">support@nebulae.ru</p>
+                  </div>
+                </a>
+
+                <a
+                  href="https://t.me/nebulae_support"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3.5 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0 group-hover:bg-white/20 transition-all">
+                    <Send className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-neutral-400 uppercase tracking-wide">Telegram Поддержка</p>
+                    <p className="text-sm font-semibold text-white mt-0.5">@nebulae_support</p>
+                  </div>
+                </a>
+
+                <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-pink-400" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-neutral-400 uppercase tracking-wide">Организация / Имя</p>
+                    <p className="text-sm font-semibold text-white mt-0.5">Федоренко Денис Витальевич</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3.5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                    <FileText className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-neutral-400 uppercase tracking-wide">ИНН / Реквизиты</p>
+                    <p className="text-sm font-mono font-semibold text-white mt-0.5">ИНН: 770902168809</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </FadeIn>
+        </section>
+
+        {/* ── SECTION 5: Документы ── */}
+        <section id="about-docs" className="scroll-mt-24">
+          <FadeIn>
+            <div className="flex items-center gap-2.5 mb-3 text-cyan-600">
+              <FileText className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-widest text-neutral-400">Правовая информация</span>
+            </div>
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-2xl sm:text-3xl font-black text-neutral-900">Официальные документы</h2>
+
+            </div>
+
+            <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-sm space-y-6">
+              <p className="text-neutral-600 text-sm leading-relaxed">
+                Вы можете ознакомиться с полным текстом каждого документа прямо на сайте, открыть его в отдельной вкладке или сохранить / распечатать в формате PDF:
+              </p>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4.5">
+                {LEGAL_DOCUMENTS.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex flex-col justify-between p-5 rounded-2xl bg-neutral-50/70 hover:bg-white border border-neutral-200/70 hover:border-neutral-300 hover:shadow-md transition-all group"
                   >
-                    <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:bg-white/20 transition-all">
-                      <Icon className="w-4 h-4 text-cyan-400" />
-                    </div>
                     <div>
-                      <p className="text-[11px] text-neutral-500 uppercase tracking-wide">{c.label}</p>
-                      <p className="text-sm font-semibold text-white mt-0.5">{c.value}</p>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </section>
-        </FadeIn>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-white border border-neutral-200/80 text-cyan-600 flex items-center justify-center shrink-0 group-hover:scale-105 group-hover:border-cyan-200 transition-all shadow-xs">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 justify-end">
 
-        {/* CTA */}
-        <FadeIn delay={0.25}>
-          <div className="text-center pb-4">
+                        </div>
+                      </div>
+
+                      <h3 className="font-bold text-neutral-900 text-sm sm:text-base group-hover:text-cyan-700 transition-colors">
+                        {doc.title}
+                      </h3>
+                      <p className="text-xs text-neutral-500 mt-1 leading-relaxed">
+                        {doc.description}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-neutral-200/60 flex items-center justify-between gap-2">
+                      <button
+                        onClick={() => handleOpenDoc(doc.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Читать на сайте</span>
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={doc.fileHtml}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-200/60 transition-colors"
+                          title="Открыть в отдельной вкладке"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <a
+                          href={doc.fileHtml}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-200/60 transition-colors"
+                          title="Распечатать или сохранить в PDF"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          </FadeIn>
+        </section>
+
+        {/* Bottom CTA */}
+        <FadeIn delay={0.1}>
+          <div className="text-center pt-4 pb-8">
             <p className="text-neutral-500 text-sm mb-4">Готовы создать своё уникальное украшение?</p>
             <button
               onClick={() => navigate('editor')}
-              className="inline-flex items-center gap-2 px-8 py-3.5 bg-neutral-950 hover:bg-neutral-800 text-white font-bold rounded-2xl transition-all active:scale-[0.98] shadow-lg text-sm"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-cyan-500 via-teal-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white font-extrabold rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-cyan-500/20 text-sm cursor-pointer"
             >
-              <Gem className="w-4 h-4" />
-              Открыть редактор
+              <span>Открыть 3D-редактор</span>
             </button>
           </div>
         </FadeIn>
@@ -220,9 +450,17 @@ export const AboutPage: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-200/60 bg-white/60 py-6 text-center text-[12px] text-neutral-400">
-        © 2026 Nebulae Studio — украшения из будущего
+      <footer className="border-t border-neutral-200/60 bg-white/60 py-6 text-center text-xs text-neutral-400">
+        © {new Date().getFullYear()} <span className="font-pilowlava text-sm text-neutral-600 tracking-wide font-normal">Nebulae</span> Studio — Информация и условия сервиса
       </footer>
+
+      {/* Document Reader Modal */}
+      <DocumentModal
+        isOpen={isDocModalOpen}
+        activeDocId={selectedDocId}
+        onClose={() => setIsDocModalOpen(false)}
+        onSelectDoc={(id) => setSelectedDocId(id)}
+      />
     </div>
   );
 };

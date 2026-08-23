@@ -46,3 +46,20 @@ export interface OrderDetails {
   comment: string;
 }
 
+export interface CatalogItem {
+  id: string;
+  name: string;
+  category: string;
+  categoryName?: string;
+  description: string;
+  price: number;
+  badge?: string;
+  defaultParams: RingParams;
+  defaultMaterial: string;
+  defaultInscription?: string;
+  stlFileName?: string;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+

@@ -21,7 +21,10 @@ import {
   FileText,
   Loader2,
   Pencil,
-  Check
+  Check,
+  Info,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { CartItem, OrderDetails } from '../types';
 import { useRouter } from '../router';
@@ -159,14 +162,34 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       // Прикрепляем STL-файлы только для выбранных товаров
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
+        let fileBlob: Blob | null = null;
+        const cleanName = (item.name || `Item_${i + 1}`).replace(/[^\w\dа-яА-Я_-]+/g, '_');
+
         if (item.stlBlobUrl) {
           try {
             const blobRes = await fetch(item.stlBlobUrl);
-            const blob = await blobRes.blob();
-            formData.append('stlFiles', blob, `Item_${i + 1}.stl`);
+            fileBlob = await blobRes.blob();
           } catch (fileErr) {
             console.error('Ошибка чтения STL блоба:', fileErr);
           }
+        } else if (item.editorSnapshot?.stlFileName) {
+          try {
+            const stlRes = await fetch(`/api/catalog/stl/${item.editorSnapshot.stlFileName}`);
+            if (stlRes.ok) fileBlob = await stlRes.blob();
+          } catch (fileErr) {
+            console.error('Ошибка чтения файла из каталога:', fileErr);
+          }
+        } else if (item.editorSnapshot?.stlDataUrl) {
+          try {
+            const dataRes = await fetch(item.editorSnapshot.stlDataUrl);
+            if (dataRes.ok) fileBlob = await dataRes.blob();
+          } catch (fileErr) {
+            console.error('Ошибка чтения dataUrl:', fileErr);
+          }
+        }
+
+        if (fileBlob) {
+          formData.append('stlFiles', fileBlob, `${cleanName}_${i + 1}.stl`);
         }
       }
 
@@ -176,15 +199,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         body: formData,
       });
 
-      const result = await response.json();
+      const contentType = response.headers.get('content-type');
+      let result: any;
+      if (contentType && contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('Неверный ответ сервера (ожидался JSON):', text);
+        throw new Error(
+          `Сервер бэкенда недоступен или вернул ошибку (HTTP ${response.status}). Убедитесь, что запущен сервер (node server.js).`
+        );
+      }
 
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Ошибка создания платежа');
       }
 
-      // Сохраняем номер заказа и удаляем только оплаченные товары из корзины
+      // Сохраняем номер заказа
       setOrderNumber(result.orderNumber);
-      selectedItems.forEach((item) => onRemoveItem(item.id));
       setSelectedIds([]);
 
       // Если ЮКасса настроена — редирект на страницу оплаты.
@@ -288,10 +320,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         >
                           <div
                             className={`w-4.5 h-4.5 rounded-md border flex items-center justify-center transition-all ${isAllSelected
-                                ? 'bg-neutral-900 border-neutral-900 text-white'
-                                : selectedIds.length > 0
-                                  ? 'bg-neutral-100 border-neutral-400 text-neutral-800'
-                                  : 'border-neutral-300 bg-white hover:border-neutral-400'
+                              ? 'bg-neutral-900 border-neutral-900 text-white'
+                              : selectedIds.length > 0
+                                ? 'bg-neutral-100 border-neutral-400 text-neutral-800'
+                                : 'border-neutral-300 bg-white hover:border-neutral-400'
                               }`}
                           >
                             {isAllSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -323,8 +355,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <div
                             key={item.id}
                             className={`p-4 rounded-2xl border transition-all shadow-xs space-y-3 ${isSelected
-                                ? 'border-neutral-300 bg-white'
-                                : 'border-neutral-200/60 bg-neutral-50/50 opacity-65'
+                              ? 'border-neutral-300 bg-white'
+                              : 'border-neutral-200/60 bg-neutral-50/50 opacity-65'
                               }`}
                           >
                             <div className="flex items-start justify-between gap-3">
@@ -337,8 +369,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 >
                                   <div
                                     className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${isSelected
-                                        ? 'bg-neutral-900 border-neutral-900 text-white'
-                                        : 'border-neutral-300 bg-white hover:border-neutral-400'
+                                      ? 'bg-neutral-900 border-neutral-900 text-white'
+                                      : 'border-neutral-300 bg-white hover:border-neutral-400'
                                       }`}
                                   >
                                     {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -412,17 +444,47 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 )}
 
                                 <button
-                                  onClick={() => {
+                                  onClick={async () => {
+                                    const cleanName = (item.name || 'Model').replace(/[^\w\dа-яА-Я_-]+/g, '_');
+
                                     if (item.stlBlobUrl) {
                                       const link = document.createElement('a');
                                       link.href = item.stlBlobUrl;
-                                      link.download = `${item.name.replace(/[^\w\dа-яА-Я_-]+/g, '_')}.stl`;
+                                      link.download = `${cleanName}.stl`;
                                       link.click();
-                                    } else {
-                                      onExportSTL();
+                                      return;
                                     }
+
+                                    if (item.editorSnapshot?.stlFileName) {
+                                      try {
+                                        const res = await fetch(`/api/catalog/stl/${item.editorSnapshot.stlFileName}`);
+                                        if (res.ok) {
+                                          const blob = await res.blob();
+                                          const url = URL.createObjectURL(blob);
+                                          const link = document.createElement('a');
+                                          link.href = url;
+                                          link.download = `${cleanName}.stl`;
+                                          link.click();
+                                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                          return;
+                                        }
+                                      } catch (err) {
+                                        console.error('Error downloading catalog STL:', err);
+                                      }
+                                    }
+
+                                    if (item.editorSnapshot?.stlDataUrl) {
+                                      const link = document.createElement('a');
+                                      link.href = item.editorSnapshot.stlDataUrl;
+                                      link.download = `${cleanName}.stl`;
+                                      link.click();
+                                      return;
+                                    }
+
+                                    onExportSTL();
                                   }}
                                   className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-white hover:bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200 transition-all cursor-pointer"
+                                  title="Скачать STL файл этой модели"
                                 >
                                   <Download className="w-3 h-3 text-neutral-600" />
                                   <span>3D STL</span>
@@ -466,6 +528,33 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           </div>
                         );
                       })}
+
+                      {/* Beta Disclaimers & Support Notice */}
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-start gap-2.5 p-3 bg-cyan-50/90 border border-cyan-200 rounded-2xl text-[11px] text-cyan-950 leading-relaxed shadow-xs">
+                          <AlertTriangle className="w-4 h-4 text-cyan-600 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-0.5 font-bold text-cyan-950">
+                              <span className="px-1.5 py-0.2 rounded bg-cyan-600 text-white text-[9px] font-black uppercase">БЕТА-ТЕСТ</span>
+                              <span>Сервис работает в режиме бета-теста</span>
+                            </div>
+                            <p className="text-neutral-700">
+                              Сервис может работать с ошибками. При любых вопросах обращайтесь на почту{' '}
+                              <a href="mailto:support@nebulae.ru" className="font-semibold text-cyan-800 underline">support@nebulae.ru</a>{' '}
+                              или в Telegram-чат поддержки{' '}
+                              <a href="https://t.me/nebulae_support" target="_blank" rel="noopener noreferrer" className="font-semibold text-cyan-800 underline">@nebulae_support</a>.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200 rounded-2xl text-[11px] text-amber-950 leading-relaxed shadow-xs">
+                          <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-amber-950 block mb-0.5">Сроки в период бета-теста</span>
+                            Время изготовления украшений увеличено <strong className="text-amber-950">до 3-х недель</strong>. Отправка готовых изделий начнется <strong className="text-amber-950">не ранее 14 сентября</strong>.
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
@@ -578,6 +667,33 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         />
                       </div>
                     </div>
+
+                    {/* Beta Disclaimers & Support Notice */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-start gap-2.5 p-3 bg-cyan-50/90 border border-cyan-200 rounded-xl text-[11px] text-cyan-950 leading-relaxed shadow-xs">
+                        <AlertTriangle className="w-4 h-4 text-cyan-600 shrink-0 mt-0.5" />
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-0.5 font-bold text-cyan-950">
+                            <span className="px-1.5 py-0.2 rounded bg-cyan-600 text-white text-[9px] font-black uppercase">БЕТА-ТЕСТ</span>
+                            <span>Сервис работает в режиме бета-теста</span>
+                          </div>
+                          <p className="text-neutral-700">
+                            Сервис может работать с ошибками. По любым вопросам пишите на{' '}
+                            <a href="mailto:support@nebulae.ru" className="font-semibold text-cyan-800 underline">support@nebulae.ru</a>{' '}
+                            или в Telegram{' '}
+                            <a href="https://t.me/nebulae_support" target="_blank" rel="noopener noreferrer" className="font-semibold text-cyan-800 underline">@nebulae_support</a>.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-[11px] text-amber-950 leading-relaxed shadow-xs">
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-amber-950 block mb-0.5">Сроки в период бета-теста</span>
+                          Время изготовления увеличено <strong className="text-amber-950">до 3-х недель</strong>. Отправка начнется <strong className="text-amber-950">не ранее 14 сентября</strong>.
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="pt-2 space-y-2">
@@ -626,8 +742,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="flex items-start gap-2.5">
                       <Truck className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />
                       <div>
-                        <span className="font-semibold text-neutral-900 block">Изготовление и доставка</span>
-                        <span className="text-[11px] text-neutral-500">Срок изготовления: 5-7 рабочих дней. Мы свяжемся с вами по номеру <strong className="text-neutral-800">{orderDetails.phone}</strong>.</span>
+                        <span className="font-semibold text-neutral-900 block">Изготовление и доставка (Бета-тест)</span>
+                        <span className="text-[11px] text-neutral-500">Срок изготовления в период бета-теста: <strong className="text-neutral-800">до 3 недель</strong>. Отправка заказов начнется <strong className="text-neutral-800">не ранее 14 сентября</strong>. Мы свяжемся с вами по номеру <strong className="text-neutral-800">{orderDetails.phone}</strong>.</span>
                       </div>
                     </div>
 
@@ -670,11 +786,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   type="button"
                   onClick={() => setStep('checkout')}
                   disabled={selectedIds.length === 0}
-                  className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
-                    selectedIds.length > 0
-                      ? 'bg-neutral-900 hover:bg-neutral-950 text-white active:scale-[0.98] shadow-neutral-900/10'
-                      : 'bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none'
-                  }`}
+                  className={`w-full py-3.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${selectedIds.length > 0
+                    ? 'bg-neutral-900 hover:bg-neutral-950 text-white active:scale-[0.98] shadow-neutral-900/10'
+                    : 'bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none'
+                    }`}
                 >
                   <span>
                     {selectedIds.length > 0
@@ -729,8 +844,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         {itemToDelete.type === 'selected'
                           ? `Вы действительно хотите удалить выбранные товары (${selectedItems.length} шт.) из корзины?`
                           : itemToDelete.type === 'all'
-                          ? `Вы действительно хотите очистить всю корзину (${items.length} шт.)?`
-                          : `Вы действительно хотите удалить «${itemToDelete.name}» из корзины?`}
+                            ? `Вы действительно хотите очистить всю корзину (${items.length} шт.)?`
+                            : `Вы действительно хотите удалить «${itemToDelete.name}» из корзины?`}
                       </p>
                     </div>
                     <div className="flex gap-2.5 pt-1">

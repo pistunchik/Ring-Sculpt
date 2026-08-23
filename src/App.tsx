@@ -56,6 +56,7 @@ import { MainMenu } from './components/MainMenu';
 import { useRouter } from './router';
 import { AboutPage } from './pages/AboutPage';
 import { SuccessPage } from './pages/SuccessPage';
+import { CatalogPage } from './pages/CatalogPage';
 
 // Helper to filter micro-jitters / clustered points when drawing
 const filterMicroJitter = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
@@ -259,7 +260,7 @@ export default function App() {
 
   // 3. Audio & Theme State
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [materialPreset, setMaterialPreset] = useState('pastel_blue');
+  const [materialPreset, setMaterialPreset] = useState('ice_blue');
 
   // Symmetry and Daylight settings (timeOfDay goes from 12.0 noon to 24.0 midnight)
   const [symmetryEnabled, setSymmetryEnabled] = useState(true);
@@ -269,7 +270,7 @@ export default function App() {
   const [timeOfDay, setTimeOfDay] = useState(12.0);
 
   // Automatic & Manual Smoothing settings
-  const [autoSmoothEnabled, setAutoSmoothEnabled] = useState(true);
+  const [autoSmoothEnabled, setAutoSmoothEnabled] = useState(false);
   const [autoSmoothStrength, setAutoSmoothStrength] = useState(0.5);
   const [smoothAllCounter, setSmoothAllCounter] = useState(0);
 
@@ -278,12 +279,13 @@ export default function App() {
   const [undoCounter, setUndoCounter] = useState(0);
   const [redoCounter, setRedoCounter] = useState(0);
   const [exportCounter, setExportCounter] = useState(0);
+  const [activeStlUrl, setActiveStlUrl] = useState<string | undefined>();
 
-interface HelpModalData {
-  title: string;
-  gif: string;
-  description: string;
-}
+  interface HelpModalData {
+    title: string;
+    gif: string;
+    description: string;
+  }
 
   // 5. Active Engine Reference for tracking undo/redo availability
   const [sculptEngine, setSculptEngine] = useState<SculptEngine | null>(null);
@@ -341,7 +343,8 @@ interface HelpModalData {
     insertsCount: number,
     engraving: string
   ) => {
-    let basePrice = 1500;
+    // 50% скидка на период бета-тестирования (базовая цена 1500 ₽ -> 750 ₽)
+    let basePrice = 750;
     return basePrice;
   };
 
@@ -367,7 +370,7 @@ interface HelpModalData {
     // Capture canvas preview thumbnail
     let previewDataUrl: string | undefined;
     if (captureSnapshotRef.current) {
-      try { previewDataUrl = captureSnapshotRef.current(); } catch {}
+      try { previewDataUrl = captureSnapshotRef.current(); } catch { }
     }
 
     // Save full editor state so user can return to editing
@@ -489,8 +492,14 @@ interface HelpModalData {
     if (snapshot.placedInserts) {
       setPlacedInserts(JSON.parse(JSON.stringify(snapshot.placedInserts)));
     }
-    if (snapshot.stlDataUrl && sculptEngine) {
-      sculptEngine.loadSTLDataUrl(snapshot.stlDataUrl);
+
+    if (snapshot.stlFileName) {
+      setActiveStlUrl(`/api/catalog/stl/${snapshot.stlFileName}`);
+    } else if (snapshot.stlDataUrl) {
+      setActiveStlUrl(snapshot.stlDataUrl);
+    } else {
+      setActiveStlUrl(undefined);
+      setTriggerReset((prev) => prev + 1);
     }
   };
 
@@ -509,8 +518,16 @@ interface HelpModalData {
     setInscriptionWeight(snap.inscriptionWeight ?? 2);
     setPlacedInserts(JSON.parse(JSON.stringify(snap.placedInserts || [])));
 
-    // Rebuild 3D ring mesh with restored parameters
-    setTriggerReset((prev) => prev + 1);
+    if (snap.stlFileName) {
+      setActiveStlUrl(`/api/catalog/stl/${snap.stlFileName}`);
+    } else if (item.stlBlobUrl) {
+      setActiveStlUrl(item.stlBlobUrl);
+    } else if (snap.stlDataUrl) {
+      setActiveStlUrl(snap.stlDataUrl);
+    } else {
+      setActiveStlUrl(undefined);
+      setTriggerReset((prev) => prev + 1);
+    }
 
     // If custom sculpted positions exist, restore them after reset
     if (snap.sculptedPositions && snap.sculptedPositions.length > 0) {
@@ -519,7 +536,7 @@ interface HelpModalData {
           sculptEngine.currentPositions.set(snap.sculptedPositions!);
           sculptEngine.updateGeometryBuffer();
         }
-      }, 80);
+      }, 150);
     }
 
     setIsCartOpen(false);
@@ -641,11 +658,9 @@ interface HelpModalData {
   }, [sculptEngine, canUndo, canRedo]);
 
   const materialPresetsList = [
-    { id: 'pastel_blue', name: 'голубой', colorClass: 'bg-[#00d2ff]' },
-    { id: 'pastel_yellow', name: 'желтый', colorClass: 'bg-[#ffe600]' },
-    { id: 'pastel_light_green', name: 'зеленый', colorClass: 'bg-[#00e676]' },
-    { id: 'pastel_pink', name: 'розовый', colorClass: 'bg-[#ff3385]' },
-    { id: 'pastel_milky', name: 'молочный', colorClass: 'bg-[#fffcf5]' },
+    { id: 'ice_blue', name: 'Ice Blue', colorClass: 'bg-[#7ecbf2]' },
+    { id: 'sakura_pink', name: 'Sakura Pink', colorClass: 'bg-[#f88cb0]' },
+    { id: 'mandarin_orange', name: 'Mandarin Orange', colorClass: 'bg-[#ff8f1c]' },
     { id: 'two_tone', name: 'Сине-розовый', colorClass: 'bg-gradient-to-r from-[#00b0ff] to-[#ff00a0]' },
     { id: 'glow_blue', name: 'голубой светящийся', colorClass: 'bg-[#00d8ff] shadow-[0_0_12px_rgba(0,216,255,0.85)] animate-pulse' },
   ];
@@ -653,23 +668,83 @@ interface HelpModalData {
   const isNight = timeOfDay >= 21.0;
 
   // ── Page routing ──
-  const { page } = useRouter();
+  const { page, navigate } = useRouter();
+
+  if (page === 'catalog') {
+    return (
+      <>
+        <CatalogPage
+          cartCount={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+          onOpenCart={() => setIsCartOpen(true)}
+          onAddToCart={(cartItem) => {
+            setCartItems((prev) => [...prev, cartItem]);
+            setCartToast({
+              show: true,
+              message: `«${cartItem.name}» добавлено в корзину!`,
+            });
+            setTimeout(() => setCartToast(null), 3500);
+          }}
+          onOpenEditorWithSnapshot={(snapshot, name) => {
+            handleOpenEditorWithSnapshot(snapshot);
+            if (name) {
+              setCartToast({
+                show: true,
+                message: `Загружена модель: ${name}`,
+              });
+              setTimeout(() => setCartToast(null), 3000);
+            }
+          }}
+        />
+
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          items={cartItems}
+          onUpdateQuantity={handleUpdateQuantity}
+          onRemoveItem={handleRemoveCartItem}
+          onEditItem={(id) => {
+            handleEditCartItem(id);
+            navigate('editor');
+          }}
+          onCheckoutSuccess={() => {
+            navigate('success');
+            setIsCartOpen(false);
+          }}
+        />
+
+        <AnimatePresence>
+          {cartToast?.show && (
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-neutral-950/90 text-white text-xs font-semibold backdrop-blur-md shadow-2xl flex items-center gap-2.5 border border-white/10"
+            >
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>{cartToast.message}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
 
   if (page === 'about') {
     return <AboutPage />;
   }
 
   if (page === 'success') {
-    return <SuccessPage />;
+    return <SuccessPage onClearCart={handleClearCart} />;
   }
 
   return (
-    <div className="relative w-screen h-screen flex flex-col md:flex-row overflow-hidden bg-[#f6f5f1] text-neutral-800 font-sans select-none antialiased">
+    <div className="relative w-screen h-screen flex flex-col md:flex-row overflow-hidden bg-[#f6f5f1] text-neutral-800 font-sans select-none">
 
       {/* 1. Canvas Area */}
       <div className="relative flex-1 h-[50vh] md:h-full overflow-hidden" id="viewport-workspace">
         <ThreeCanvas
           ringParams={ringParams}
+          stlUrl={activeStlUrl}
           brushConfig={brushConfig}
           onEngineReady={handleEngineReady}
           soundEnabled={soundEnabled}
@@ -712,9 +787,17 @@ interface HelpModalData {
         />
 
         {/* Brand Header + Main Menu Button */}
-        <div className="absolute top-5 left-5 z-10 flex items-center gap-2">
+        <div className="absolute top-5 left-5 z-10 flex items-center gap-2.5">
           <MainMenu />
-          <h1 className="text-lg font-bold tracking-tight text-neutral-900 select-none pointer-events-none">Nebulae ver 0.1</h1>
+          <h1 className="flex items-center gap-2 select-none pointer-events-none text-neutral-900">
+            <span className="font-pilowlava text-2xl tracking-wide leading-none">Nebulae</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-neutral-500 font-sans tracking-tight">ver 0.67</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-gradient-to-r from-cyan-500 to-teal-500 text-white font-extrabold text-[9px] tracking-wider uppercase shadow-xs">
+                BETA
+              </span>
+            </div>
+          </h1>
         </div>
 
         {/* Real-time Collision Warning Banner */}
@@ -1476,7 +1559,7 @@ interface HelpModalData {
                     id={`material-btn-${preset.id}`}
                   >
                     {isSelected && (
-                      <Check className={`w-3.5 h-3.5 stroke-[2.5] ${preset.id === 'pastel_milky' ? 'text-emerald-600' : 'text-neutral-900'}`} />
+                      <Check className="w-3.5 h-3.5 stroke-[2.5] text-neutral-900 drop-shadow-xs" />
                     )}
                     <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-neutral-900 text-white text-[13px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-sm font-sans z-30">
                       {preset.name}
@@ -1545,11 +1628,10 @@ interface HelpModalData {
 
             <button
               onClick={handleAddToCart}
-              className={`w-full py-3.5 px-4 text-white rounded-xl text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-[0.98] ${
-                editingCartItemId
+              className={`w-full py-3.5 px-4 text-white rounded-xl text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-[0.98] ${editingCartItemId
                   ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
-              }`}
+                }`}
               id="add-to-cart-button"
             >
               {editingCartItemId ? (
@@ -1558,10 +1640,13 @@ interface HelpModalData {
                   <span>ПОДТВЕРДИТЬ ИЗМЕНЕНИЯ</span>
                 </>
               ) : (
-                <>
-                  <ShoppingBag className="w-4 h-4" />
-                  <span>ДОБАВИТЬ В КОРЗИНУ ({new Intl.NumberFormat('ru-RU').format(calculateRingPrice(ringParams, materialPreset, placedInserts.length, inscriptionText))} ₽)</span>
-                </>
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <ShoppingBag className="w-4 h-4 shrink-0" />
+                  <span>ДОБАВИТЬ В КОРЗИНУ</span>
+                  <span className="font-mono font-black">{new Intl.NumberFormat('ru-RU').format(calculateRingPrice(ringParams, materialPreset, placedInserts.length, inscriptionText))} ₽</span>
+                  <span className="line-through text-white/50 text-[11px] font-normal">1 500 ₽</span>
+                  <span className="px-1.5 py-0.5 bg-white/20 rounded text-[9px] font-black uppercase tracking-wider">-50% БЕТА</span>
+                </div>
               )}
             </button>
 
