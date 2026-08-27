@@ -345,6 +345,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   const isSculptingActive = useRef(false);
   const lastIntersectPoint = useRef<THREE.Vector3 | null>(null);
   const mousePosition = useRef<THREE.Vector2>(new THREE.Vector2());
+  const [isHoveringRing, setIsHoveringRing] = useState(false);
+  const [isDraggingEmpty, setIsDraggingEmpty] = useState(false);
 
   // Sync decorative inserts
   useEffect(() => {
@@ -822,18 +824,19 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     controls.maxPolarAngle = Math.PI;
 
     // MAPPING INTUITION:
-    // Right Click -> Rotate
+    // Left Click on empty space -> Rotate camera
+    // Left Click on ring -> Sculpt (controls dynamically disabled for that stroke)
     // Middle Click -> Dolly/Zoom
-    // Left Click is left entirely unbound so sculpting raycasts smoothly without camera drag!
+    // Right Click -> Rotate camera
     controls.mouseButtons = {
-      LEFT: -1 as any, // Important: prevents camera rotation on sculpting
+      LEFT: THREE.MOUSE.ROTATE,
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE,
     };
 
-    // Support two-finger gestures on mobile for rotation/zoom
+    // Support single touch on background for rotation, two-finger gestures for zoom
     controls.touches = {
-      ONE: -1 as any, // Sculpting on mobile single touch
+      ONE: THREE.TOUCH.ROTATE,
       TWO: THREE.TOUCH.DOLLY_PAN,
     };
 
@@ -1320,11 +1323,16 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
   // MOUSE & TOUCH EVENT EVENT HANDLERS
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Left click only sculpts/places
+    // Left click only sculpts/places or rotates on empty space
     if (e.button !== 0) return;
 
     const hit = performRaycast(e.clientX, e.clientY);
     if (hit) {
+      // Disable orbit controls while sculpting on the mesh
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false;
+      }
+
       const activeInsertType = insertTypeRef.current;
       if (activeInsertType) {
         // We are in insert mode! Add insert(s) symmetrically and do not sculpt!
@@ -1377,6 +1385,12 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
       // Run first deform stroke
       applySculptStroke(hit);
+    } else {
+      // Empty area clicked: enable orbit controls so Left Drag rotates smoothly
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true;
+      }
+      setIsDraggingEmpty(true);
     }
   };
 
@@ -1387,6 +1401,11 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       mousePosition.current.set(x, y);
+    }
+
+    if (!isSculptingActive.current && !isDraggingEmpty) {
+      const hit = performRaycast(e.clientX, e.clientY);
+      setIsHoveringRing(!!hit);
     }
 
     if (!isSculptingActive.current || insertTypeRef.current) return;
@@ -1400,6 +1419,10 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   };
 
   const handleMouseUp = () => {
+    setIsDraggingEmpty(false);
+    if (controlsRef.current) {
+      controlsRef.current.enabled = true;
+    }
     if (isSculptingActive.current) {
       isSculptingActive.current = false;
       lastIntersectPoint.current = null;
@@ -1416,16 +1439,22 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
   // TOUCH EVENT HANDLERS (MOBILE SUPPORT)
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Single touch sculpts
+    // Single touch sculpts if over ring, or rotates if on empty area
     if (e.touches.length !== 1) {
       isSculptingActive.current = false;
       claySoundManager.stop();
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true;
+      }
       return;
     }
 
     const touch = e.touches[0];
     const hit = performRaycast(touch.clientX, touch.clientY);
     if (hit) {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false;
+      }
       const activeInsertType = insertTypeRef.current;
       if (activeInsertType) {
         // Use insert-aware raycast for correct normal when clicking on existing inserts
@@ -1471,6 +1500,11 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
 
       claySoundManager.start();
       applySculptStroke(hit);
+    } else {
+      if (controlsRef.current) {
+        controlsRef.current.enabled = true;
+      }
+      setIsDraggingEmpty(true);
     }
   };
 
@@ -1537,7 +1571,9 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full cursor-crosshair overflow-hidden touch-none select-none bg-transparent"
+      className={`relative w-full h-full overflow-hidden touch-none select-none bg-transparent ${
+        isDraggingEmpty ? 'cursor-grabbing' : isHoveringRing ? 'cursor-crosshair' : 'cursor-grab'
+      }`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -1559,8 +1595,8 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       {/* Floating Camera Help Overlay */}
       <div className="absolute bottom-4 left-4 font-sans text-[12px] tracking-wide text-neutral-500 bg-white/90 px-3 py-2 rounded-2xl shadow-md border border-neutral-200/60 select-none backdrop-blur-md hidden md:flex items-center gap-3.5 z-10">
         <div className="leading-snug text-neutral-600 font-medium">
-          <div><strong className="text-neutral-900">ЛКМ:</strong> лепка</div>
-          <div><strong className="text-neutral-900">ПКМ:</strong> вращение</div>
+          <div><strong className="text-neutral-900">ЛКМ на кольце:</strong> лепка</div>
+          <div><strong className="text-neutral-900">ЛКМ на фоне / ПКМ:</strong> вращение</div>
           <div><strong className="text-neutral-900">Колесо:</strong> зум</div>
           <div><strong className="text-neutral-900">Дабл-клик:</strong> сброс камеры</div>
         </div>

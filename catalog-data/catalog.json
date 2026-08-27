@@ -1,24 +1,5 @@
 [
   {
-    "id": "cat_1787754820645_030yg",
-    "name": "импорт",
-    "category": "rings",
-    "categoryName": "Кольца",
-    "description": "",
-    "price": 1850,
-    "badge": "",
-    "defaultParams": {
-      "innerDiameter": 15,
-      "width": 6,
-      "thickness": 2.5
-    },
-    "defaultMaterial": "ice_blue",
-    "defaultInscription": "",
-    "stlFileName": "cat_1787754820645_030yg____________stl.stl",
-    "isActive": true,
-    "createdAt": "2026-08-26T14:33:40.653Z"
-  },
-  {
     "id": "cat_1787272511509_gshhl",
     "name": "Волна",
     "category": "rings",
