@@ -12,7 +12,8 @@ import {
   Maximize2,
 } from 'lucide-react';
 import { CatalogItem, CartItem, EditorSnapshot } from '../types';
-import { MATERIAL_PRESETS_LIST, createRingMaterial } from '../utils/materialUtils';
+import { MATERIAL_PRESETS_LIST, MATERIAL_GROUPS, createRingMaterial } from '../utils/materialUtils';
+import { scaleRingGeometryToInnerDiameter } from '../utils/geometryUtils';
 import { SculptEngine } from './SculptEngine';
 
 interface CatalogItemCardProps {
@@ -45,7 +46,9 @@ export const CatalogItemCard: React.FC<CatalogItemCardProps> = ({
   const baseGeometryRef = useRef<THREE.BufferGeometry | null>(null);
 
   const activeMaterialInfo =
-    MATERIAL_PRESETS_LIST.find((m) => m.id === selectedMaterial) || MATERIAL_PRESETS_LIST[4];
+    MATERIAL_PRESETS_LIST.find((m) => m.id === selectedMaterial) ||
+    MATERIAL_PRESETS_LIST.find((m) => m.id === 'ice_blue') ||
+    MATERIAL_PRESETS_LIST[0];
 
   // ── Three.js Viewport Initialisation ──
   useEffect(() => {
@@ -193,17 +196,7 @@ export const CatalogItemCard: React.FC<CatalogItemCardProps> = ({
           if (!isMounted) return;
           geo.computeVertexNormals();
           geo.center();
-          geo.computeBoundingBox();
-          if (geo.boundingBox) {
-            const size = new THREE.Vector3();
-            geo.boundingBox.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 0) {
-              const targetSize = defaultSize + defaultThickness * 2;
-              const scaleFactor = targetSize / maxDim;
-              geo.scale(scaleFactor, scaleFactor, scaleFactor);
-            }
-          }
+          scaleRingGeometryToInnerDiameter(geo, defaultSize);
           attachGeometry(geo);
         },
         undefined,
@@ -251,7 +244,7 @@ export const CatalogItemCard: React.FC<CatalogItemCardProps> = ({
     };
   }, [item.id, item.stlFileName]);
 
-  // ── Sync Material Changes ──
+  // ── Sync Material Changes in Real-Time ──
   useEffect(() => {
     if (!ringMeshRef.current) return;
     const oldMat = ringMeshRef.current.material;
@@ -289,10 +282,9 @@ export const CatalogItemCard: React.FC<CatalogItemCardProps> = ({
     }
 
     let customStlBlobUrl: string | undefined;
-    if (engineRef.current && (selectedSize !== defaultSize || inscription.trim().length > 0)) {
+    if (engineRef.current) {
       try {
-        const buffer = engineRef.current.exportSTL(false);
-        const blob = new Blob([buffer], { type: 'application/octet-stream' });
+        const blob = engineRef.current.generateSTLBlob();
         customStlBlobUrl = URL.createObjectURL(blob);
       } catch (e) {
         console.warn('Could not generate custom STL blob:', e);
@@ -483,29 +475,36 @@ export const CatalogItemCard: React.FC<CatalogItemCardProps> = ({
                 {activeMaterialInfo.name}
               </span>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {MATERIAL_PRESETS_LIST.map((preset) => {
-                const isSelected = selectedMaterial === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    title={preset.name}
-                    onClick={() => setSelectedMaterial(preset.id)}
-                    className={`w-6 h-6 rounded-full transition-all duration-200 relative flex items-center justify-center ${
-                      preset.colorClass
-                    } ${
-                      isSelected
-                        ? 'scale-110 ring-2 ring-offset-2 ring-neutral-900 shadow-md'
-                        : 'hover:scale-105 opacity-85 hover:opacity-100 border border-black/10'
-                    }`}
-                  >
-                    {isSelected && (
-                      <Check className="w-3 h-3 text-neutral-900 drop-shadow-xs" />
-                    )}
-                  </button>
-                );
-              })}
+            <div className="space-y-2">
+              {MATERIAL_GROUPS.map((group) => (
+                <div key={group.id}>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-1">{group.label}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {group.presets.map((preset) => {
+                      const isSelected = selectedMaterial === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          title={preset.name}
+                          onClick={() => setSelectedMaterial(preset.id)}
+                          className={`w-6 h-6 rounded-full transition-all duration-200 relative flex items-center justify-center border-2 ${
+                            preset.colorClass
+                          } ${
+                            isSelected
+                              ? 'border-emerald-500 ring-2 ring-emerald-500/30 scale-110 shadow-md'
+                              : 'border-neutral-300 hover:border-neutral-400 hover:scale-105'
+                          }`}
+                        >
+                          {isSelected && (
+                            <Check className="w-3 h-3 text-neutral-900 drop-shadow-xs" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -389,7 +389,7 @@ apiRouter.post('/create-payment', upload.array('stlFiles'), async (req, res) => 
       const orderNumber = buildOrderNum();
       const stlBuffers = (req.files || []).map((f, i) => ({
         buffer: f.buffer,
-        filename: f.originalname || `Model_${orderNumber}_${i + 1}.stl`,
+        filename: `${orderNumber}_${i + 1}.stl`,
       }));
       await sendOrderToTelegram(
         orderNumber,
@@ -421,7 +421,7 @@ apiRouter.post('/create-payment', upload.array('stlFiles'), async (req, res) => 
 
     const stlBuffers = (req.files || []).map((f, i) => ({
       buffer: f.buffer,
-      filename: f.originalname || `Model_${orderNumber}_${i + 1}.stl`,
+      filename: `${orderNumber}_${i + 1}.stl`,
     }));
 
     const idempotenceKey = crypto.randomUUID();

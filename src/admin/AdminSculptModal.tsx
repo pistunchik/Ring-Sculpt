@@ -29,6 +29,7 @@ import {
   Info,
   Hand,
   Gem,
+  Upload,
 } from 'lucide-react';
 import { ThreeCanvas } from '../components/ThreeCanvas';
 import {
@@ -39,7 +40,9 @@ import {
   PlacedInsert,
 } from '../components/SculptEngine';
 import { claySoundManager } from '../components/ClaySoundManager';
-import { MATERIAL_PRESETS_LIST } from '../utils/materialUtils';
+import { MATERIAL_PRESETS_LIST, MATERIAL_GROUPS } from '../utils/materialUtils';
+import { traceImageToPoints, normalizePointsFor3D } from '../utils/contourTracer';
+
 
 // ─── Micro-Jitter Filter & Chaikin Smoothing for Custom 2D Drawing ────────────
 interface Point {
@@ -91,22 +94,51 @@ const AdminDrawingCanvas: React.FC<{
   onDrawEnd: (points: Point[]) => void;
   onClear: () => void;
 }> = ({ onDrawEnd, onClear }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [points, setPoints] = useState<Point[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const draw = (ctx: CanvasRenderingContext2D, pts: Point[]) => {
+  const draw = (
+    ctx: CanvasRenderingContext2D,
+    pts: { x: number; y: number }[]
+  ) => {
     ctx.clearRect(0, 0, 160, 160);
-    ctx.strokeStyle = '#00d2ff';
-    ctx.lineWidth = 3.5;
+
+    // Blueprint grid dots
+    ctx.fillStyle = '#374151';
+    for (let x = 12; x < 160; x += 16) {
+      for (let y = 12; y < 160; y += 16) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (pts.length === 0) {
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Нарисуйте контур', 80, 70);
+      ctx.fillText('или перетащите', 80, 86);
+      ctx.fillText('картинку сюда', 80, 102);
+      return;
+    }
+
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-
-    if (pts.length < 2) return;
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) {
       ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    if (pts.length > 2) {
+      ctx.lineTo(pts[0].x, pts[0].y);
     }
     ctx.stroke();
   };
@@ -144,6 +176,7 @@ const AdminDrawingCanvas: React.FC<{
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ) => {
     e.preventDefault();
+    setErrorMessage(null);
     const coords = getCoordinates(e);
     if (!coords) return;
     setDrawing(true);
@@ -175,12 +208,86 @@ const AdminDrawingCanvas: React.FC<{
 
   const handleClearClick = () => {
     setPoints([]);
+    setErrorMessage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     onClear();
   };
 
+  const processImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Поддерживаются только изображения (PNG, JPG, SVG, WEBP)');
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    try {
+      const pts = await traceImageToPoints(file, 160);
+      if (pts.length < 3) {
+        setErrorMessage('Не удалось распознать силуэт на изображении.');
+        return;
+      }
+      setPoints(pts);
+      onDrawEnd(pts);
+    } catch {
+      setErrorMessage('Ошибка обработки изображения.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processImageFile(file);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processImageFile(file);
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative border border-neutral-700/80 rounded-2xl overflow-hidden bg-neutral-900 shadow-inner">
+    <div className="flex flex-col items-center gap-2 w-full">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      <div
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative border-2 rounded-2xl overflow-hidden bg-neutral-900 shadow-inner transition-all ${
+          isDraggingOver
+            ? 'border-cyan-400 bg-neutral-800 scale-[1.02] ring-4 ring-cyan-500/20'
+            : 'border-neutral-700/80 hover:border-neutral-600'
+        }`}
+      >
         <canvas
           ref={canvasRef}
           width={160}
@@ -194,14 +301,52 @@ const AdminDrawingCanvas: React.FC<{
           onTouchEnd={handleEnd}
           className="cursor-crosshair block touch-none"
         />
+
+        {isDraggingOver && (
+          <div className="absolute inset-0 bg-cyan-950/80 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none p-2 text-center">
+            <Upload className="w-6 h-6 text-cyan-400 mb-1 animate-bounce" />
+            <span className="text-[11px] font-semibold text-cyan-300">
+              Отпустите изображение
+            </span>
+          </div>
+        )}
+
+        {isProcessing && (
+          <div className="absolute inset-0 bg-neutral-900/85 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none p-2 text-center">
+            <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-1" />
+            <span className="text-[11px] font-semibold text-cyan-300">
+              Распознавание контура...
+            </span>
+          </div>
+        )}
       </div>
-      <button
-        type="button"
-        onClick={handleClearClick}
-        className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-lg font-medium cursor-pointer"
-      >
-        Очистить рисунок
-      </button>
+
+      {errorMessage && (
+        <p className="text-[11px] text-rose-400 text-center max-w-[220px] leading-tight mt-0.5">
+          {errorMessage}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="text-xs text-cyan-300 hover:text-cyan-200 transition-colors bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-800/60 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 cursor-pointer"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          Загрузить фото
+        </button>
+
+        {points.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClearClick}
+            className="text-xs text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 rounded-lg font-medium cursor-pointer"
+          >
+            Очистить
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -814,7 +959,7 @@ export const AdminSculptModal: React.FC<AdminSculptModalProps> = ({
                     <div className="bg-neutral-900 p-4 rounded-2xl border border-neutral-800 flex flex-col items-center">
                       <span className="text-neutral-400 text-xs mb-2">Нарисуйте контур вставки</span>
                       <AdminDrawingCanvas
-                        onDrawEnd={setCustomPoints}
+                        onDrawEnd={(rawPts) => setCustomPoints(normalizePointsFor3D(rawPts))}
                         onClear={() => setCustomPoints([])}
                       />
                     </div>
@@ -1058,27 +1203,34 @@ export const AdminSculptModal: React.FC<AdminSculptModalProps> = ({
                     <label className="block text-[11px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
                       Палитра ювелирных материалов
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {MATERIAL_PRESETS_LIST.map((mat) => {
-                        const isSelected = materialPreset === mat.id;
-                        return (
-                          <button
-                            key={mat.id}
-                            type="button"
-                            onClick={() => setMaterialPreset(mat.id)}
-                            className={`p-3 rounded-2xl border flex items-center gap-3 transition-all text-left cursor-pointer ${
-                              isSelected
-                                ? 'bg-cyan-500/10 border-cyan-500 text-white shadow-md'
-                                : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
-                            }`}
-                          >
-                            <span
-                              className={`w-5 h-5 rounded-full shrink-0 shadow-sm border border-white/20 ${mat.colorClass}`}
-                            />
-                            <span className="text-xs font-semibold truncate">{mat.name}</span>
-                          </button>
-                        );
-                      })}
+                    <div className="space-y-3">
+                      {MATERIAL_GROUPS.map((group) => (
+                        <div key={group.id}>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1.5">{group.label}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {group.presets.map((mat) => {
+                              const isSelected = materialPreset === mat.id;
+                              return (
+                                <button
+                                  key={mat.id}
+                                  type="button"
+                                  onClick={() => setMaterialPreset(mat.id)}
+                                  className={`p-3 rounded-2xl border flex items-center gap-3 transition-all text-left cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-cyan-500/10 border-cyan-500 text-white shadow-md'
+                                      : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-5 h-5 rounded-full shrink-0 shadow-sm border border-white/20 ${mat.colorClass}`}
+                                  />
+                                  <span className="text-xs font-semibold truncate">{mat.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 

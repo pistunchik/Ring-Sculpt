@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { RingParams } from '../types';
 import { createRingMaterial } from '../utils/materialUtils';
+import { scaleRingGeometryToInnerDiameter } from '../utils/geometryUtils';
 
 interface Admin3DPreviewProps {
   stlUrl?: string;
@@ -127,16 +128,7 @@ export const Admin3DPreview: React.FC<Admin3DPreviewProps> = ({
           if (!isMounted) return;
           geo.computeVertexNormals();
           geo.center();
-          geo.computeBoundingBox();
-          if (geo.boundingBox) {
-            const size = new THREE.Vector3();
-            geo.boundingBox.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 0) {
-              const scaleFactor = (ringParams.innerDiameter + ringParams.thickness * 2) / maxDim;
-              geo.scale(scaleFactor, scaleFactor, scaleFactor);
-            }
-          }
+          scaleRingGeometryToInnerDiameter(geo, ringParams.innerDiameter);
           attachGeometry(geo);
         },
         undefined,
@@ -156,16 +148,7 @@ export const Admin3DPreview: React.FC<Admin3DPreviewProps> = ({
         const loadedGeo = loader.parse(bytes.buffer);
         loadedGeo.computeVertexNormals();
         loadedGeo.center();
-        loadedGeo.computeBoundingBox();
-        if (loadedGeo.boundingBox) {
-          const size = new THREE.Vector3();
-          loadedGeo.boundingBox.getSize(size);
-          const maxDim = Math.max(size.x, size.y, size.z);
-          if (maxDim > 0) {
-            const scaleFactor = (ringParams.innerDiameter + ringParams.thickness * 2) / maxDim;
-            loadedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
-          }
-        }
+        scaleRingGeometryToInnerDiameter(loadedGeo, ringParams.innerDiameter);
         attachGeometry(loadedGeo);
       } catch (err) {
         console.warn('Error parsing base64 STL:', err);
@@ -178,16 +161,7 @@ export const Admin3DPreview: React.FC<Admin3DPreviewProps> = ({
           if (!isMounted) return;
           geo.computeVertexNormals();
           geo.center();
-          geo.computeBoundingBox();
-          if (geo.boundingBox) {
-            const size = new THREE.Vector3();
-            geo.boundingBox.getSize(size);
-            const maxDim = Math.max(size.x, size.y, size.z);
-            if (maxDim > 0) {
-              const scaleFactor = (ringParams.innerDiameter + ringParams.thickness * 2) / maxDim;
-              geo.scale(scaleFactor, scaleFactor, scaleFactor);
-            }
-          }
+          scaleRingGeometryToInnerDiameter(geo, ringParams.innerDiameter);
           attachGeometry(geo);
         },
         undefined,

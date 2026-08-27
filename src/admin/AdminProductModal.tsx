@@ -16,7 +16,7 @@ import {
 import { CatalogItem, RingParams } from '../types';
 import { Admin3DPreview } from './Admin3DPreview';
 import { AdminSculptModal } from './AdminSculptModal';
-import { MATERIAL_PRESETS_LIST } from '../utils/materialUtils';
+import { MATERIAL_PRESETS_LIST, MATERIAL_GROUPS } from '../utils/materialUtils';
 
 interface AdminProductModalProps {
   isOpen: boolean;
@@ -345,10 +345,14 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                       onChange={(e) => setDefaultMaterial(e.target.value)}
                       className="w-full px-3 py-2 bg-[#0f1117] border border-neutral-800 rounded-xl focus:border-cyan-500 focus:outline-none text-white text-xs"
                     >
-                      {MATERIAL_PRESETS_LIST.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
+                      {MATERIAL_GROUPS.map((group) => (
+                        <optgroup key={group.id} label={group.label}>
+                          {group.presets.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>

@@ -41,7 +41,8 @@ import {
   ShieldAlert,
   ShoppingBag,
   HelpCircle,
-  X
+  X,
+  Upload
 } from 'lucide-react';
 import gifAdd from './gifs/Подсказка_Добавить.gif';
 import gifSubtract from './gifs/Подсказка_Убать.gif';
@@ -57,6 +58,7 @@ import { useRouter } from './router';
 import { AboutPage } from './pages/AboutPage';
 import { SuccessPage } from './pages/SuccessPage';
 import { CatalogPage } from './pages/CatalogPage';
+import { MATERIAL_PRESETS_LIST, MATERIAL_GROUPS } from './utils/materialUtils';
 
 // Helper to filter micro-jitters / clustered points when drawing
 const filterMicroJitter = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
@@ -97,11 +99,18 @@ const applyChaikin = (pts: { x: number; y: number }[], iterations: number = 3): 
   return current;
 };
 
-// Cozy blueprint-styled interactive sketch drawing panel for custom insert cross-sections
+import { traceImageToPoints, normalizePointsFor3D } from './utils/contourTracer';
+export { traceImageToPoints };
+
+// Cozy blueprint-styled interactive sketch drawing panel with Drag & Drop and File Select support
 const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y: number }[]) => void; onClear: () => void }) => {
   const [drawing, setDrawing] = useState(false);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const draw = (ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[]) => {
     ctx.clearRect(0, 0, 150, 150);
@@ -122,10 +131,11 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
     if (pts.length === 0) {
       // Draw placeholder instruction text
       ctx.fillStyle = '#9ca3af';
-      ctx.font = '13px sans-serif';
+      ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Нарисуйте контур', 75, 70);
-      ctx.fillText('(зажмите и ведите)', 75, 85);
+      ctx.fillText('Нарисуйте контур', 75, 64);
+      ctx.fillText('или перетащите', 75, 80);
+      ctx.fillText('картинку сюда', 75, 96);
       return;
     }
 
@@ -176,6 +186,7 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
 
   const handleStart = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    setErrorMessage(null);
     const coords = getCoordinates(e);
     if (!coords) return;
     setDrawing(true);
@@ -205,12 +216,86 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
 
   const handleClearClick = () => {
     setPoints([]);
+    setErrorMessage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     onClear();
   };
 
+  const processImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Поддерживаются только изображения (PNG, JPG, SVG, WEBP)');
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    try {
+      const pts = await traceImageToPoints(file, 150);
+      if (pts.length < 3) {
+        setErrorMessage('Не удалось найти контур объекта. Попробуйте четкое изображение или силуэт.');
+        return;
+      }
+      setPoints(pts);
+      onDrawEnd(pts);
+    } catch {
+      setErrorMessage('Ошибка при обработке изображения');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processImageFile(file);
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processImageFile(file);
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative border border-neutral-200/80 rounded-xl overflow-hidden bg-neutral-50 shadow-inner">
+    <div className="flex flex-col items-center gap-2 w-full">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      <div
+        onDragOver={handleDragOver}
+        onDragEnter={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative border-2 rounded-2xl overflow-hidden transition-all shadow-inner ${
+          isDraggingOver
+            ? 'border-indigo-500 bg-indigo-50/70 scale-[1.02] ring-4 ring-indigo-500/20'
+            : 'border-neutral-200/90 bg-neutral-50 hover:border-neutral-300'
+        }`}
+      >
         <canvas
           ref={canvasRef}
           width={150}
@@ -224,13 +309,52 @@ const DrawingPad = ({ onDrawEnd, onClear }: { onDrawEnd: (points: { x: number; y
           onTouchEnd={handleEnd}
           className="cursor-crosshair block touch-none"
         />
+
+        {isDraggingOver && (
+          <div className="absolute inset-0 bg-indigo-600/15 backdrop-blur-[1px] flex flex-col items-center justify-center pointer-events-none p-2 text-center">
+            <Upload className="w-6 h-6 text-indigo-600 mb-1 animate-bounce" />
+            <span className="text-[11px] font-semibold text-indigo-700 leading-tight">
+              Отпустите изображение
+            </span>
+          </div>
+        )}
+
+        {isProcessing && (
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col items-center justify-center pointer-events-none p-2 text-center">
+            <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-1" />
+            <span className="text-[11px] font-semibold text-indigo-700 leading-tight">
+              Распознавание контура...
+            </span>
+          </div>
+        )}
       </div>
-      <button
-        onClick={handleClearClick}
-        className="text-[13px] text-neutral-500 hover:text-neutral-800 transition-colors bg-neutral-100 hover:bg-neutral-200/85 px-2.5 py-1 rounded-md font-medium"
-      >
-        Очистить рисунок
-      </button>
+
+      {errorMessage && (
+        <p className="text-[11px] text-rose-500 text-center max-w-[220px] leading-tight mt-0.5">
+          {errorMessage}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="text-[12px] flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 transition-colors bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg font-medium"
+        >
+          <Upload className="w-3.5 h-3.5" />
+          Загрузить фото
+        </button>
+
+        {points.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClearClick}
+            className="text-[12px] text-neutral-500 hover:text-neutral-800 transition-colors bg-neutral-100 hover:bg-neutral-200/85 px-3 py-1.5 rounded-lg font-medium"
+          >
+            Очистить
+          </button>
+        )}
+      </div>
     </div>
   );
 };
@@ -243,6 +367,7 @@ export default function App() {
   const [insertBevel, setInsertBevel] = useState<number>(15);
   const [insertScale, setInsertScale] = useState<number>(1.0);
   const [customPoints, setCustomPoints] = useState<{ x: number; y: number }[]>([]);
+
   // 1. Ring Dimension State
   const [ringParams, setRingParams] = useState<RingParams>({
     innerDiameter: 18.0, // Standard size 18
@@ -349,7 +474,7 @@ export default function App() {
   };
 
   const handleAddToCart = () => {
-    const currentMaterial = materialPresetsList.find((m) => m.id === materialPreset);
+    const currentMaterial = MATERIAL_PRESETS_LIST.find((m) => m.id === materialPreset);
     const calculatedPrice = calculateRingPrice(
       ringParams,
       materialPreset,
@@ -657,13 +782,6 @@ export default function App() {
     };
   }, [sculptEngine, canUndo, canRedo]);
 
-  const materialPresetsList = [
-    { id: 'ice_blue', name: 'Ice Blue', colorClass: 'bg-[#7ecbf2]' },
-    { id: 'sakura_pink', name: 'Sakura Pink', colorClass: 'bg-[#f88cb0]' },
-    { id: 'mandarin_orange', name: 'Mandarin Orange', colorClass: 'bg-[#ff8f1c]' },
-    { id: 'two_tone', name: 'Сине-розовый', colorClass: 'bg-gradient-to-r from-[#00b0ff] to-[#ff00a0]' },
-    { id: 'glow_blue', name: 'голубой светящийся', colorClass: 'bg-[#00d8ff] shadow-[0_0_12px_rgba(0,216,255,0.85)] animate-pulse' },
-  ];
 
   const isNight = timeOfDay >= 21.0;
 
@@ -678,21 +796,9 @@ export default function App() {
           onOpenCart={() => setIsCartOpen(true)}
           onAddToCart={(cartItem) => {
             setCartItems((prev) => [...prev, cartItem]);
-            setCartToast({
-              show: true,
-              message: `«${cartItem.name}» добавлено в корзину!`,
-            });
-            setTimeout(() => setCartToast(null), 3500);
           }}
-          onOpenEditorWithSnapshot={(snapshot, name) => {
+          onOpenEditorWithSnapshot={(snapshot) => {
             handleOpenEditorWithSnapshot(snapshot);
-            if (name) {
-              setCartToast({
-                show: true,
-                message: `Загружена модель: ${name}`,
-              });
-              setTimeout(() => setCartToast(null), 3000);
-            }
           }}
         />
 
@@ -702,6 +808,12 @@ export default function App() {
           items={cartItems}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveCartItem}
+          onClearCart={handleClearCart}
+          onExportSTL={() => {
+            if (sculptEngine) {
+              sculptEngine.exportSTL(true);
+            }
+          }}
           onEditItem={(id) => {
             handleEditCartItem(id);
             navigate('editor');
@@ -711,20 +823,6 @@ export default function App() {
             setIsCartOpen(false);
           }}
         />
-
-        <AnimatePresence>
-          {cartToast?.show && (
-            <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-neutral-950/90 text-white text-xs font-semibold backdrop-blur-md shadow-2xl flex items-center gap-2.5 border border-white/10"
-            >
-              <Check className="w-4 h-4 text-emerald-400" />
-              <span>{cartToast.message}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </>
     );
   }
@@ -1326,8 +1424,8 @@ export default function App() {
                     onDrawEnd={handleSketchEnd}
                     onClear={() => setCustomPoints([])}
                   />
-                  <span className="text-[13px] text-neutral-400 text-center mt-2 leading-relaxed">
-                    Нарисуйте закрытую форму. Она автоматически выдавится по высоте и преобразуется в 3D призму.
+                  <span className="text-[12px] text-neutral-400 text-center mt-2 leading-relaxed">
+                    Нарисуйте закрытую форму или перетащите картинку прямо на поле рисования.
                   </span>
                 </motion.div>
               )}
@@ -1542,32 +1640,40 @@ export default function App() {
               <h2 className="text-[13px] font-semibold uppercase tracking-wider text-neutral-400">Материал</h2>
             </div>
 
-            {/* Color/Material Dots */}
-            <div className="flex flex-wrap gap-2.5">
-              {materialPresetsList.map((preset) => {
-                const isSelected = materialPreset === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    onClick={() => setMaterialPreset(preset.id)}
-                    className={`group relative w-8 h-8 rounded-full border-2 transition-all active:scale-90 flex items-center justify-center ${preset.colorClass
-                      } ${isSelected
-                        ? 'border-emerald-500 ring-2 ring-emerald-500/30 shadow-md scale-105'
-                        : 'border-neutral-300 hover:border-neutral-400'
-                      }`}
-                    title={preset.name}
-                    id={`material-btn-${preset.id}`}
-                  >
-                    {isSelected && (
-                      <Check className="w-3.5 h-3.5 stroke-[2.5] text-neutral-900 drop-shadow-xs" />
-                    )}
-                    <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-neutral-900 text-white text-[13px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-sm font-sans z-30">
-                      {preset.name}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Material Groups */}
+            <div className="space-y-3">
+              {MATERIAL_GROUPS.map((group) => (
+                <div key={group.id}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1.5">{group.label}</p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {group.presets.map((preset) => {
+                      const isSelected = materialPreset === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          onClick={() => setMaterialPreset(preset.id)}
+                          className={`group relative w-8 h-8 rounded-full border-2 transition-all active:scale-90 flex items-center justify-center ${preset.colorClass
+                            } ${isSelected
+                              ? 'border-emerald-500 ring-2 ring-emerald-500/30 shadow-md scale-105'
+                              : 'border-neutral-300 hover:border-neutral-400'
+                            }`}
+                          title={preset.name}
+                          id={`material-btn-${preset.id}`}
+                        >
+                          {isSelected && (
+                            <Check className="w-3.5 h-3.5 stroke-[2.5] text-neutral-900 drop-shadow-xs" />
+                          )}
+                          <span className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 bg-neutral-900 text-white text-[13px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-sm font-sans z-30">
+                            {preset.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
+
 
             {/* Daylight Cycle Dial (Освещение) */}
             <div className="mt-4 bg-white rounded-xl border border-neutral-200/50 p-3" id="daylight-wheel-section">
@@ -1599,7 +1705,7 @@ export default function App() {
 
 
 
-              {materialPreset === 'glow_blue' && (
+              {MATERIAL_PRESETS_LIST.find((m) => m.id === materialPreset)?.isGlow && (
                 <div className="mt-2 flex items-center justify-center gap-1 text-[13px] bg-sky-50 text-sky-600 border border-sky-100 p-1 rounded-md font-medium">
                   {timeOfDay >= 21 ? 'Свечение активно в темноте!' : 'Сдвиньте колесо к ночи, чтобы увидеть свечение в темноте!'}
                 </div>
@@ -1629,8 +1735,8 @@ export default function App() {
             <button
               onClick={handleAddToCart}
               className={`w-full py-3.5 px-4 text-white rounded-xl text-[13px] font-bold tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer active:scale-[0.98] ${editingCartItemId
-                  ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
-                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                 }`}
               id="add-to-cart-button"
             >
@@ -1684,34 +1790,7 @@ export default function App() {
         onEditItem={handleEditCartItem}
       />
 
-      {/* Toast Notification when item added */}
-      <AnimatePresence>
-        {cartToast?.show && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-neutral-700/80 flex items-center gap-3 backdrop-blur-md max-w-sm w-[90vw]"
-          >
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-bold">
-              <Check className="w-4 h-4" />
-            </div>
-            <div className="text-xs flex-1">
-              <p className="font-bold text-white">{cartToast.message}</p>
-              <p className="text-neutral-400 text-[11px]">Параметры сохранены</p>
-            </div>
-            <button
-              onClick={() => {
-                setCartToast(null);
-                setIsCartOpen(true);
-              }}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg transition-all shrink-0 cursor-pointer"
-            >
-              В корзину
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
       {/* Video Help Modal */}
       <AnimatePresence>
         {helpModal && (

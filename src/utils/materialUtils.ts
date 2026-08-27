@@ -6,14 +6,46 @@ export interface MaterialPresetInfo {
   colorClass: string;
   colorHex: string;
   isGlow?: boolean;
+  group: 'pla_matte' | 'silk' | 'glow';
+}
+
+export interface MaterialGroup {
+  id: string;
+  label: string;
+  presets: MaterialPresetInfo[];
 }
 
 export const MATERIAL_PRESETS_LIST: MaterialPresetInfo[] = [
-  { id: 'ice_blue', name: 'Ice Blue', colorClass: 'bg-[#7ecbf2]', colorHex: '#7ecbf2' },
-  { id: 'sakura_pink', name: 'Sakura Pink', colorClass: 'bg-[#f88cb0]', colorHex: '#f88cb0' },
-  { id: 'mandarin_orange', name: 'Mandarin Orange', colorClass: 'bg-[#ff8f1c]', colorHex: '#ff8f1c' },
-  { id: 'two_tone', name: 'Сине-розовый', colorClass: 'bg-gradient-to-r from-[#00b0ff] to-[#ff00a0]', colorHex: '#00b0ff' },
-  { id: 'glow_blue', name: 'голубой светящийся', colorClass: 'bg-[#00d8ff] shadow-[0_0_10px_rgba(0,216,255,0.85)] animate-pulse', colorHex: '#00d8ff', isGlow: true },
+  // ── PLA Matte ──
+  { id: 'ice_blue',        name: 'Ice Blue',              colorClass: 'bg-[#7ecbf2]', colorHex: '#7ecbf2', group: 'pla_matte' },
+  { id: 'sakura_pink',     name: 'Sakura Pink',           colorClass: 'bg-[#f88cb0]', colorHex: '#f88cb0', group: 'pla_matte' },
+  { id: 'mandarin_orange', name: 'Mandarin Orange',       colorClass: 'bg-[#ff8f1c]', colorHex: '#ff8f1c', group: 'pla_matte' },
+  { id: 'matte_charcoal',  name: 'Matte Charcoal',        colorClass: 'bg-[#1c1c1c]', colorHex: '#1c1c1c', group: 'pla_matte' },
+  // ── Silk ──
+  { id: 'two_tone',        name: 'Сине-розовый',       colorClass: 'bg-gradient-to-r from-[#00b0ff] to-[#ff00a0]', colorHex: '#00b0ff', group: 'silk' },
+  { id: 'silk_dark_red',   name: 'Тёмно-красный',      colorClass: 'bg-gradient-to-br from-[#8b0000] to-[#1a0000]', colorHex: '#8b0000', group: 'silk' },
+  // ── Glow ──
+  { id: 'glow_blue',       name: 'Светящийся голубой',    colorClass: 'bg-[#00d8ff] shadow-[0_0_10px_rgba(0,216,255,0.85)] animate-pulse', colorHex: '#00d8ff', isGlow: true, group: 'glow' },
+  { id: 'glow_green',      name: 'Светящийся зелёный',   colorClass: 'bg-[#39ff14] shadow-[0_0_10px_rgba(57,255,20,0.85)] animate-pulse',  colorHex: '#39ff14', isGlow: true, group: 'glow' },
+  { id: 'glow_purple',     name: 'Светящийся фиолетовый', colorClass: 'bg-[#cc44ff] shadow-[0_0_10px_rgba(204,68,255,0.85)] animate-pulse', colorHex: '#cc44ff', isGlow: true, group: 'glow' },
+];
+
+export const MATERIAL_GROUPS: MaterialGroup[] = [
+  {
+    id: 'pla_matte',
+    label: 'PLA Matte',
+    presets: MATERIAL_PRESETS_LIST.filter((m) => m.group === 'pla_matte'),
+  },
+  {
+    id: 'silk',
+    label: 'PLA Silk',
+    presets: MATERIAL_PRESETS_LIST.filter((m) => m.group === 'silk'),
+  },
+  {
+    id: 'glow',
+    label: 'Светящийся',
+    presets: MATERIAL_PRESETS_LIST.filter((m) => m.group === 'glow'),
+  },
 ];
 
 export const materialShaderDefs: Record<string, any> = {
@@ -58,6 +90,38 @@ export const materialShaderDefs: Record<string, any> = {
     roughness: 0.12,
     metalness: 0.05,
   },
+  silk_dark_red: {
+    // PLA Silk Dual — deep crimson with dark black sheen
+    color: 0x8b0000,
+    roughness: 0.08,
+    metalness: 0.72,
+    clearcoat: 1.0,
+    clearcoatRoughness: 0.04,
+  },
+  matte_charcoal: {
+    // Bambu Lab PLA Matte Charcoal (11101)
+    color: 0x1c1c1c,
+    roughness: 0.92,
+    metalness: 0.0,
+    clearcoat: 0.0,
+    clearcoatRoughness: 1.0,
+  },
+  glow_green: {
+    // Kingroon PLA glow-in-the-dark green
+    color: 0x39ff14,
+    emissive: 0x1aaa00,
+    emissiveIntensity: 0.80,
+    roughness: 0.15,
+    metalness: 0.0,
+  },
+  glow_purple: {
+    // Kingroon PLA glow-in-the-dark purple
+    color: 0xcc44ff,
+    emissive: 0x7700cc,
+    emissiveIntensity: 0.80,
+    roughness: 0.15,
+    metalness: 0.0,
+  },
   // Backward compatibility fallbacks for legacy preset names
   pastel_blue: {
     color: 0x7ecbf2,
@@ -99,7 +163,7 @@ export const materialShaderDefs: Record<string, any> = {
 export const createRingMaterial = (presetName: string): THREE.Material => {
   const params = materialShaderDefs[presetName] || materialShaderDefs.ice_blue;
 
-  if (presetName === 'glow_blue') {
+  if (presetName === 'glow_blue' || presetName === 'glow_green' || presetName === 'glow_purple') {
     return new THREE.MeshPhysicalMaterial({
       color: params.color,
       emissive: new THREE.Color(params.emissive),
@@ -108,6 +172,56 @@ export const createRingMaterial = (presetName: string): THREE.Material => {
       metalness: params.metalness,
       shadowSide: THREE.DoubleSide,
     });
+  }
+
+  if (presetName === 'silk_dark_red') {
+    const mat = new THREE.MeshPhysicalMaterial({
+      roughness: 0.08,
+      metalness: 0.72,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      shadowSide: THREE.DoubleSide,
+    });
+
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+         varying vec3 vLocalPos;
+         varying vec3 vLocalNormal;`
+      ).replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vLocalPos = position;
+         vLocalNormal = normal;`
+      );
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+         varying vec3 vLocalPos;
+         varying vec3 vLocalNormal;`
+      ).replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+         vec3 N = vec3(0.0, 0.0, 1.0);
+         if (length(vLocalNormal) > 0.001) {
+           N = normalize(vLocalNormal);
+         }
+         // Silk dual-extrusion: deep crimson-red / near-black shift
+         vec3 splitDir = normalize(vec3(1.0, 0.35, 0.2));
+         float dotVal = dot(N, splitDir);
+         float mixRatio = smoothstep(-0.55, 0.55, dotVal);
+
+         // Rich dark red (deep crimson) to almost-black
+         vec3 crimsonColor = vec3(0.55, 0.0, 0.0);
+         vec3 darkColor    = vec3(0.07, 0.0, 0.0);
+
+         diffuseColor.rgb = mix(darkColor, crimsonColor, mixRatio);`
+      );
+    };
+
+    return mat;
   }
 
   if (presetName === 'two_tone') {

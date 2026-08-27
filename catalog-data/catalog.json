@@ -1,5 +1,24 @@
 [
   {
+    "id": "cat_1787754820645_030yg",
+    "name": "импорт",
+    "category": "rings",
+    "categoryName": "Кольца",
+    "description": "",
+    "price": 1850,
+    "badge": "",
+    "defaultParams": {
+      "innerDiameter": 15,
+      "width": 6,
+      "thickness": 2.5
+    },
+    "defaultMaterial": "ice_blue",
+    "defaultInscription": "",
+    "stlFileName": "cat_1787754820645_030yg____________stl.stl",
+    "isActive": true,
+    "createdAt": "2026-08-26T14:33:40.653Z"
+  },
+  {
     "id": "cat_1787272511509_gshhl",
     "name": "Волна",
     "category": "rings",
@@ -8,7 +27,7 @@
     "price": 750,
     "badge": "Бета -50%",
     "defaultParams": {
-      "innerDiameter": 18,
+      "innerDiameter": 15,
       "width": 4.5,
       "thickness": 2.2
     },
@@ -16,7 +35,8 @@
     "defaultInscription": "",
     "stlFileName": "cat_1787272511509_gshhl____________stl.stl",
     "isActive": true,
-    "createdAt": "2026-08-21T00:35:11.512Z"
+    "createdAt": "2026-08-21T00:35:11.512Z",
+    "updatedAt": "2026-08-26T14:31:07.449Z"
   },
   {
     "id": "cat_1787272255418_l1prl",
@@ -27,7 +47,7 @@
     "price": 750,
     "badge": "Бета -50%",
     "defaultParams": {
-      "innerDiameter": 18,
+      "innerDiameter": 16,
       "width": 4.5,
       "thickness": 2.2
     },
@@ -35,7 +55,8 @@
     "defaultInscription": "",
     "stlFileName": "cat_1787272255418_l1prl____________stl.stl",
     "isActive": true,
-    "createdAt": "2026-08-21T00:30:55.427Z"
+    "createdAt": "2026-08-21T00:30:55.427Z",
+    "updatedAt": "2026-08-26T14:27:00.241Z"
   },
   {
     "id": "cat_1787271981160_vzo4q",
@@ -54,7 +75,8 @@
     "defaultInscription": "",
     "stlFileName": "cat_1787271981160_vzo4q________________18_stl.stl",
     "isActive": true,
-    "createdAt": "2026-08-21T00:26:21.165Z"
+    "createdAt": "2026-08-21T00:26:21.165Z",
+    "updatedAt": "2026-08-25T13:19:41.370Z"
   },
   {
     "id": "cat_1787166447457_wtkum",
@@ -74,7 +96,7 @@
     "stlFileName": "cat_1787166447457_wtkum_3_stl.stl",
     "isActive": true,
     "createdAt": "2026-08-19T19:07:27.458Z",
-    "updatedAt": "2026-08-21T00:35:45.529Z"
+    "updatedAt": "2026-08-25T13:19:48.460Z"
   },
   {
     "id": "cat_1787166434028_2ti96",
@@ -94,7 +116,7 @@
     "stlFileName": "cat_1787166434028_2ti96_2_stl.stl",
     "isActive": true,
     "createdAt": "2026-08-19T19:07:14.033Z",
-    "updatedAt": "2026-08-21T00:35:51.151Z"
+    "updatedAt": "2026-08-25T13:19:45.986Z"
   },
   {
     "id": "cat_1787166426276_k1u9o",
@@ -114,6 +136,6 @@
     "stlFileName": "cat_1787166426276_k1u9o_model.stl",
     "isActive": true,
     "createdAt": "2026-08-19T19:07:06.286Z",
-    "updatedAt": "2026-08-21T00:35:58.213Z"
+    "updatedAt": "2026-08-25T13:19:42.985Z"
   }
 ]

@@ -42,6 +42,8 @@ export interface RingParams {
   thickness: number;    // in mm
 }
 
+import { scaleRingGeometryToInnerDiameter } from '../utils/geometryUtils';
+
 export class SculptEngine {
   public geometry: THREE.BufferGeometry;
   
@@ -135,22 +137,13 @@ export class SculptEngine {
     this.updateGeometryBuffer();
   }
 
-  public loadGeometry(loadedGeo: THREE.BufferGeometry, targetDiameter?: number) {
+  public loadGeometry(loadedGeo: THREE.BufferGeometry, targetInnerDiameter?: number) {
     try {
       loadedGeo.computeVertexNormals();
       loadedGeo.center();
 
-      loadedGeo.computeBoundingBox();
-      if (loadedGeo.boundingBox) {
-        const size = new THREE.Vector3();
-        loadedGeo.boundingBox.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z);
-        if (maxDim > 0) {
-          const d = targetDiameter || (this.lastRingParams ? this.lastRingParams.innerDiameter + this.lastRingParams.thickness * 2 : 22.5);
-          const scaleFactor = d / maxDim;
-          loadedGeo.scale(scaleFactor, scaleFactor, scaleFactor);
-        }
-      }
+      const targetD = targetInnerDiameter || (this.lastRingParams ? this.lastRingParams.innerDiameter : 17.5);
+      scaleRingGeometryToInnerDiameter(loadedGeo, targetD);
 
       if (this.geometry && this.geometry !== loadedGeo) {
         this.geometry.dispose();

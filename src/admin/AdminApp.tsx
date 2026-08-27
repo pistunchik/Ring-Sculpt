@@ -393,7 +393,8 @@ export const AdminApp: React.FC = () => {
             {filteredItems.map((item) => {
               const activeMat =
                 MATERIAL_PRESETS_LIST.find((m) => m.id === item.defaultMaterial) ||
-                MATERIAL_PRESETS_LIST[4];
+                MATERIAL_PRESETS_LIST.find((m) => m.id === 'ice_blue') ||
+                MATERIAL_PRESETS_LIST[0];
 
               return (
                 <div

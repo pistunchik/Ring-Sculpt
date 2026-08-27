@@ -49,53 +49,11 @@ interface ThreeCanvasProps {
   onOpenOnboarding?: () => void;
 }
 
-// Bambu Lab PLA Matte presets + special materials
-const materialPresets: Record<string, any> = {
-  ice_blue: {
-    color: 0x7ecbf2,
-    roughness: 0.38,
-    metalness: 0.02,
-    clearcoat: 0.2,
-    clearcoatRoughness: 0.25,
-    label: "Ice Blue"
-  },
-  sakura_pink: {
-    color: 0xf88cb0,
-    roughness: 0.38,
-    metalness: 0.02,
-    clearcoat: 0.2,
-    clearcoatRoughness: 0.25,
-    label: "Sakura Pink"
-  },
-  mandarin_orange: {
-    color: 0xff8f1c,
-    roughness: 0.38,
-    metalness: 0.02,
-    clearcoat: 0.2,
-    clearcoatRoughness: 0.25,
-    label: "Mandarin Orange"
-  },
-  two_tone: {
-    color: 0xffffff,
-    roughness: 0.10,
-    metalness: 0.40,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.03,
-    label: "Сине-розовый"
-  },
-  glow_blue: {
-    color: 0x00c4ff,
-    emissive: 0x0088dd,
-    emissiveIntensity: 0.75,
-    roughness: 0.12,
-    metalness: 0.05,
-    label: "голубой светящийся"
-  }
-};
 
 const createMaterial = (presetName: string): THREE.Material => {
   return createRingMaterial(presetName);
 };
+
 
 // Generates warm, cozy, atmospheric lights and background based on the timeOfDay (12:00 -> 24:00)
 const getLightState = (t: number) => {
@@ -732,7 +690,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
     loader.load(
       stlUrl,
       (loadedGeo) => {
-        engine.loadGeometry(loadedGeo, ringParamsRef.current.innerDiameter + ringParamsRef.current.thickness * 2);
+        engine.loadGeometry(loadedGeo, ringParamsRef.current.innerDiameter);
         if (ringMeshRef.current) {
           ringMeshRef.current.geometry = loadedGeo;
           ringMeshRef.current.geometry.computeVertexNormals();
@@ -935,7 +893,7 @@ export const ThreeCanvas: React.FC<ThreeCanvasProps> = ({
       loader.load(
         stlUrl,
         (loadedGeo) => {
-          engine.loadGeometry(loadedGeo, ringParamsRef.current.innerDiameter + ringParamsRef.current.thickness * 2);
+          engine.loadGeometry(loadedGeo, ringParamsRef.current.innerDiameter);
           if (ringMeshRef.current) {
             ringMeshRef.current.geometry = loadedGeo;
             ringMeshRef.current.geometry.computeVertexNormals();

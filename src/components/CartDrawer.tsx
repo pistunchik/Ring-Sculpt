@@ -446,15 +446,49 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                 <button
                                   onClick={async () => {
                                     const cleanName = (item.name || 'Model').replace(/[^\w\dа-яА-Я_-]+/g, '_');
+                                    const fileName = `${cleanName}.stl`;
 
+                                    // 1. If item has a customized Blob or API URL (with exact ring size & inscriptions)
                                     if (item.stlBlobUrl) {
+                                      try {
+                                        if (item.stlBlobUrl.startsWith('/api/')) {
+                                          const res = await fetch(item.stlBlobUrl);
+                                          if (res.ok) {
+                                            const blob = await res.blob();
+                                            const url = URL.createObjectURL(blob);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.download = fileName;
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                            setTimeout(() => URL.revokeObjectURL(url), 2000);
+                                            return;
+                                          }
+                                        }
+                                        const link = document.createElement('a');
+                                        link.href = item.stlBlobUrl;
+                                        link.download = fileName;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        return;
+                                      } catch (err) {
+                                        console.warn('Error downloading blob URL:', err);
+                                      }
+                                    }
+
+                                    if (item.editorSnapshot?.stlDataUrl) {
                                       const link = document.createElement('a');
-                                      link.href = item.stlBlobUrl;
-                                      link.download = `${cleanName}.stl`;
+                                      link.href = item.editorSnapshot.stlDataUrl;
+                                      link.download = fileName;
+                                      document.body.appendChild(link);
                                       link.click();
+                                      document.body.removeChild(link);
                                       return;
                                     }
 
+                                    // 2. If catalog item has an associated STL file
                                     if (item.editorSnapshot?.stlFileName) {
                                       try {
                                         const res = await fetch(`/api/catalog/stl/${item.editorSnapshot.stlFileName}`);
@@ -463,25 +497,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                                           const url = URL.createObjectURL(blob);
                                           const link = document.createElement('a');
                                           link.href = url;
-                                          link.download = `${cleanName}.stl`;
+                                          link.download = fileName;
+                                          document.body.appendChild(link);
                                           link.click();
-                                          setTimeout(() => URL.revokeObjectURL(url), 1000);
+                                          document.body.removeChild(link);
+                                          setTimeout(() => URL.revokeObjectURL(url), 2000);
                                           return;
                                         }
                                       } catch (err) {
-                                        console.error('Error downloading catalog STL:', err);
+                                        console.warn('Error fetching catalog STL:', err);
                                       }
                                     }
 
-                                    if (item.editorSnapshot?.stlDataUrl) {
-                                      const link = document.createElement('a');
-                                      link.href = item.editorSnapshot.stlDataUrl;
-                                      link.download = `${cleanName}.stl`;
-                                      link.click();
-                                      return;
+                                    // 3. Fallback: export active 3D model
+                                    if (onExportSTL) {
+                                      onExportSTL();
                                     }
-
-                                    onExportSTL();
                                   }}
                                   className="inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 hover:text-neutral-900 bg-white hover:bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200 transition-all cursor-pointer"
                                   title="Скачать STL файл этой модели"
