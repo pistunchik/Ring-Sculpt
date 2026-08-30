@@ -101,7 +101,7 @@ const WelcomeModal: React.FC<WelcomeModalProps> = ({ onStart, onSkip, onOpenCata
               boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
             }}
           >
-            <BookOpen className="w-4 h-4 text-cyan-400" />
+
             <span>Открыть каталог готовых украшений</span>
             <ChevronRight className="w-4 h-4" />
           </motion.button>
