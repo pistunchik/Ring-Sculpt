@@ -1007,7 +1007,7 @@ export const AdminSculptModal: React.FC<AdminSculptModalProps> = ({
                         <input
                           type="range"
                           min={0.5}
-                          max={2.5}
+                          max={5.0}
                           step={0.1}
                           value={insertScale}
                           onChange={(e) => setInsertScale(parseFloat(e.target.value))}
